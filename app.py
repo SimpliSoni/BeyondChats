@@ -12,7 +12,7 @@ from werkzeug.utils import secure_filename
 # --- Initialization ---
 load_dotenv()
 
-app = Flask(__name__, static_folder='static', template_folder='static')
+app = Flask(__name__)
 
 # --- Configuration ---
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
