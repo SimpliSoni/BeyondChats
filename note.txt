@@ -1,8 +1,8 @@
-1. claude was able to complete the code till here
-2. complete the remaining part of the code/project
-3. show me the recommeded file strcture and tasks remaining , and features with files let it all 
+1. Help me install all dependcies 
+2. Get gemini api and setup
+3. Setup mongodb atlas and get it's api
+4. Deploy the project to vercel 
 
-i am mostly working on the file at once , so i won't ask to rewrite the files once the project , once it has moved on next file, so whatever features it has implement in that file , let it do it all at once
+give me detailed setps to do all this 
 
-
-
+anaylze the remaining steps from the pdf , what to implement , crtitique the project and the UI based on the evaluation criteria too

@@ -1,11 +1,11 @@
 import os
 import uuid
 import json
+import google.generativeai as genai
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from pymongo import MongoClient
 from bson import ObjectId
 import PyPDF2
-import openai
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
@@ -18,14 +18,18 @@ app = Flask(__name__, static_folder='static', template_folder='static')
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# --- OpenAI and MongoDB Setup ---
+# --- Gemini AI and MongoDB Setup ---
 try:
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    # Configure the Gemini API client
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    model = genai.GenerativeModel('gemini-pro')
+
+    # Configure MongoDB client
     client = MongoClient(os.getenv("MONGO_URI"))
     db = client.school_reviser_db
     pdfs_collection = db.pdfs
     quiz_attempts_collection = db.quiz_attempts
-    print("Successfully connected to MongoDB and configured OpenAI.")
+    print("Successfully connected to MongoDB and configured Gemini API.")
 except Exception as e:
     print(f"Error during setup: {e}")
 
@@ -48,7 +52,6 @@ def upload_pdf():
 
     if file and file.filename.endswith('.pdf'):
         original_filename = secure_filename(file.filename)
-        # Create a unique filename to prevent overwrites
         unique_filename = f"{uuid.uuid4()}_{original_filename}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(filepath)
@@ -56,25 +59,28 @@ def upload_pdf():
         try:
             with open(filepath, 'rb') as f:
                 reader = PyPDF2.PdfReader(f)
-                extracted_text = "".join(page.extract_text() for page in reader.pages)
-            
+                extracted_text = "".join(page.extract_text() for page in reader.pages if page.extract_text())
+
             pdf_doc = {
                 "filename": original_filename,
-                "filepath": os.path.join('uploads', unique_filename).replace("\\", "/"), # Use forward slashes for URLs
+                "filepath": f"/uploads/{unique_filename}",
                 "extracted_text": extracted_text
             }
-            pdfs_collection.insert_one(pdf_doc)
-            return jsonify({"success": True, "message": "File uploaded and processed."}), 201
+            result = pdfs_collection.insert_one(pdf_doc)
+            return jsonify({
+                "success": True,
+                "message": "File uploaded and processed.",
+                "pdf_id": str(result.inserted_id)
+            }), 201
         except Exception as e:
             return jsonify({"error": f"Failed to process PDF: {e}"}), 500
-    
-    return jsonify({"error": "Invalid file type. Please upload a PDF."}), 400
+    return jsonify({"error": "Invalid file type"}), 400
 
 @app.route('/api/pdfs', methods=['GET'])
 def get_pdfs():
     try:
-        all_pdfs = list(pdfs_collection.find({}, {"extracted_text": 0})) # Exclude large text field
-        return jsonify([serialize_doc(pdf) for pdf in all_pdfs]), 200
+        all_pdfs = list(pdfs_collection.find({}, {"extracted_text": 0}))
+        return jsonify({"pdfs": [serialize_doc(pdf) for pdf in all_pdfs]}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve PDFs: {e}"}), 500
 
@@ -90,7 +96,7 @@ def generate_quiz():
         if not pdf_doc or not pdf_doc.get('extracted_text'):
             return jsonify({"error": "PDF not found or has no text content."}), 404
 
-        text_content = pdf_doc['extracted_text'][:8000] # Limit context to avoid token limits
+        text_content = " ".join(pdf_doc['extracted_text'].split()[:4000])
 
         prompt = f"""
         Based on the following text from a coursebook, generate a quiz.
@@ -101,26 +107,19 @@ def generate_quiz():
 
         Return ONLY a single valid JSON object. Do not include any text or markdown formatting before or after the JSON.
         The JSON object must have three keys: "mcqs", "saqs", and "laqs".
-        
-        For each MCQ, provide a "question", an array of "options", and the "correctAnswer".
-        For each SAQ and LAQ, provide just a "question".
+
+        For each MCQ, provide a "question", an array of string "options", and the exact string of the "correctAnswer".
+        For each SAQ and LAQ, provide a "question" and a brief "idealAnswer" for scoring reference.
 
         Text content:
         ---
         {text_content}
         ---
         """
-
-        response = openai.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant designed to generate quizzes in JSON format."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        quiz_data = json.loads(response.choices[0].message.content)
+        response = model.generate_content(prompt)
+        # Clean the response to ensure it's valid JSON
+        cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
+        quiz_data = json.loads(cleaned_response)
         return jsonify(quiz_data), 200
 
     except Exception as e:
@@ -129,14 +128,56 @@ def generate_quiz():
 @app.route('/api/score-quiz', methods=['POST'])
 def score_quiz():
     data = request.get_json()
-    # In a real app, you would save this attempt to the database
-    # quiz_attempts_collection.insert_one(data)
-    print("Received quiz attempt:", data) # For demonstration
-    return jsonify({"success": True, "message": "Quiz attempt recorded."}), 200
+    user_answers = data.get('userAnswers')
+    quiz_questions = data.get('quizQuestions')
 
+    prompt = f"""
+    A student has submitted answers to a quiz. Evaluate their submission based on the provided questions and ideal answers.
+    
+    Quiz Questions and Ideal Answers:
+    ---
+    {json.dumps(quiz_questions, indent=2)}
+    ---
+
+    Student's Answers:
+    ---
+    {json.dumps(user_answers, indent=2)}
+    ---
+
+    Provide a final score as a percentage (e.g., "85%") and detailed, constructive feedback for each question in a markdown formatted string.
+    
+    Return ONLY a single valid JSON object with three keys: "score", "overallFeedback", and "questionFeedback".
+    - "score" should be a string (e.g., "85%").
+    - "overallFeedback" should be a brief, encouraging summary of the student's performance.
+    - "questionFeedback" should be an array of objects, where each object has a "question" and a "feedback" string.
+    """
+    try:
+        response = model.generate_content(prompt)
+        cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
+        scoring_result = json.loads(cleaned_response)
+
+        # Store the attempt in the database
+        quiz_attempts_collection.insert_one({
+            "pdfId": data.get('pdfId'),
+            "answers": user_answers,
+            "score": scoring_result.get("score"),
+            "feedback": scoring_result.get("overallFeedback"),
+            "timestamp": { "$date": { "$numberLong": f"{int(os.times().user * 1000)}" } }
+        })
+
+        return jsonify(scoring_result), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to score quiz: {e}"}), 500
+
+@app.route('/api/progress', methods=['GET'])
+def get_progress():
+    try:
+        attempts = list(quiz_attempts_collection.find({}).sort("timestamp", -1))
+        return jsonify({"attempts": [serialize_doc(attempt) for attempt in attempts]}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve progress: {e}"}), 500
 
 # --- Frontend Serving ---
-
 @app.route('/')
 def index():
     return render_template('index.html')
