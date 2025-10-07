@@ -2,12 +2,13 @@ import os
 import uuid
 import json
 import google.generativeai as genai
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
 from bson import ObjectId
 import PyPDF2
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+import datetime
 
 # --- Initialization ---
 load_dotenv()
@@ -15,8 +16,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # --- Configuration ---
-app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# In a serverless environment, only the /tmp directory is writable.
+app.config['UPLOAD_FOLDER'] = '/tmp'
 
 # --- Gemini AI and MongoDB Setup ---
 try:
@@ -31,13 +32,22 @@ try:
     quiz_attempts_collection = db.quiz_attempts
     print("Successfully connected to MongoDB and configured Gemini API.")
 except Exception as e:
+    # This will help debug setup issues in the Vercel logs.
     print(f"Error during setup: {e}")
 
 # --- Helper for JSON serialization ---
 def serialize_doc(doc):
     """Converts a MongoDB doc to a JSON-serializable format."""
-    if doc and '_id' in doc:
-        doc['_id'] = str(doc['_id'])
+    if doc:
+        if '_id' in doc:
+            doc['_id'] = str(doc['_id'])
+        # Serialize ObjectId and datetime objects
+        for key, value in doc.items():
+            if isinstance(value, ObjectId):
+                doc[key] = str(value)
+            if isinstance(value, datetime.datetime):
+                # Convert datetime to ISO 8601 string format
+                doc[key] = value.isoformat()
     return doc
 
 # --- API Endpoints ---
@@ -54,16 +64,19 @@ def upload_pdf():
         original_filename = secure_filename(file.filename)
         unique_filename = f"{uuid.uuid4()}_{original_filename}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(filepath)
-
+        
         try:
+            file.save(filepath)
+
             with open(filepath, 'rb') as f:
                 reader = PyPDF2.PdfReader(f)
                 extracted_text = "".join(page.extract_text() for page in reader.pages if page.extract_text())
 
+            if not extracted_text:
+                 return jsonify({"error": "Could not extract text from PDF."}), 400
+
             pdf_doc = {
                 "filename": original_filename,
-                "filepath": f"/uploads/{unique_filename}",
                 "extracted_text": extracted_text
             }
             result = pdfs_collection.insert_one(pdf_doc)
@@ -74,11 +87,18 @@ def upload_pdf():
             }), 201
         except Exception as e:
             return jsonify({"error": f"Failed to process PDF: {e}"}), 500
-    return jsonify({"error": "Invalid file type"}), 400
+        finally:
+            # Clean up the saved file from /tmp
+            if os.path.exists(filepath):
+                os.remove(filepath)
+    else:
+        return jsonify({"error": "Invalid file type. Please upload a PDF."}), 400
+
 
 @app.route('/api/pdfs', methods=['GET'])
 def get_pdfs():
     try:
+        # Exclude the large extracted_text field from the initial list
         all_pdfs = list(pdfs_collection.find({}, {"extracted_text": 0}))
         return jsonify({"pdfs": [serialize_doc(pdf) for pdf in all_pdfs]}), 200
     except Exception as e:
@@ -117,9 +137,14 @@ def generate_quiz():
         ---
         """
         response = model.generate_content(prompt)
-        # Clean the response to ensure it's valid JSON
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
-        quiz_data = json.loads(cleaned_response)
+        
+        # Add robust JSON parsing
+        try:
+            quiz_data = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            return jsonify({"error": "Failed to parse AI response as JSON. Please try again."}), 500
+            
         return jsonify(quiz_data), 200
 
     except Exception as e:
@@ -130,6 +155,7 @@ def score_quiz():
     data = request.get_json()
     user_answers = data.get('userAnswers')
     quiz_questions = data.get('quizQuestions')
+    pdf_id_str = data.get('pdfId')
 
     prompt = f"""
     A student has submitted answers to a quiz. Evaluate their submission based on the provided questions and ideal answers.
@@ -154,15 +180,23 @@ def score_quiz():
     try:
         response = model.generate_content(prompt)
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
-        scoring_result = json.loads(cleaned_response)
+
+        # Add robust JSON parsing
+        try:
+            scoring_result = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            return jsonify({"error": "Failed to parse AI scoring response as JSON. Please try again."}), 500
+
+        # Ensure pdfId is always stored as an ObjectId for consistency
+        pdf_id_obj = ObjectId(pdf_id_str) if pdf_id_str and ObjectId.is_valid(pdf_id_str) else None
 
         # Store the attempt in the database
         quiz_attempts_collection.insert_one({
-            "pdfId": data.get('pdfId'),
+            "pdfId": pdf_id_obj,
             "answers": user_answers,
             "score": scoring_result.get("score"),
             "feedback": scoring_result.get("overallFeedback"),
-            "timestamp": { "$date": { "$numberLong": f"{int(os.times().user * 1000)}" } }
+            "timestamp": datetime.datetime.utcnow()
         })
 
         return jsonify(scoring_result), 200
@@ -181,10 +215,6 @@ def get_progress():
 @app.route('/')
 def index():
     return render_template('index.html')
-
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
     app.run(debug=True)

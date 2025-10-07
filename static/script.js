@@ -6,7 +6,7 @@ const newQuizBtn = document.getElementById('newQuizBtn');
 const refreshPDFsBtn = document.getElementById('refreshPDFs');
 const quizContainer = document.getElementById('quizContainer');
 const pdfViewer = document.getElementById('pdfViewer');
-const pdfFrame = document.getElementById('pdfFrame');
+const pdfCanvas = document.getElementById('pdfCanvas'); // Changed from pdfFrame
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingText = document.getElementById('loadingText');
 const toast = document.getElementById('toast');
@@ -27,6 +27,7 @@ const progressAverage = document.getElementById('progressAverage');
 // State
 let currentQuiz = null;
 let currentPdfId = null;
+let currentPdfFile = null; // To hold the file for client-side rendering
 
 // Initialize
 document.addEventListener('DOMContentLoaded', initializeApp);
@@ -115,9 +116,11 @@ async function loadPDFs() {
             const option = document.createElement('option');
             option.value = pdf._id;
             option.textContent = pdf.filename;
-            option.dataset.filepath = pdf.filepath;
             pdfSelect.appendChild(option);
         });
+
+        // Update Quick Stats in the sidebar
+        document.getElementById('totalQuizzes').textContent = data.pdfs.length;
     } catch (error) {
         showToast(`Error loading PDFs: ${error.message}`, 'error');
     }
@@ -126,6 +129,9 @@ async function loadPDFs() {
 async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
+
+    // Store the file for client-side rendering
+    currentPdfFile = file;
 
     const formData = new FormData();
     formData.append('file', file);
@@ -139,6 +145,8 @@ async function handleFileUpload(event) {
         showToast('PDF uploaded successfully!', 'success');
         await loadPDFs();
         pdfSelect.value = data.pdf_id;
+        
+        // Fix: Call handlePdfSelect to update the PDF viewer
         handlePdfSelect();
     } catch (error) {
         showToast(error.message, 'error');
@@ -148,22 +156,62 @@ async function handleFileUpload(event) {
     }
 }
 
-function handlePdfSelect() {
+async function handlePdfSelect() {
     const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
     currentPdfId = selectedOption.value;
 
     if (currentPdfId) {
-        pdfFrame.src = selectedOption.dataset.filepath;
-        pdfFrame.style.display = 'block';
-        pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
+        // If a file was just uploaded, use it. Otherwise, we can't display a PDF from the list.
+        if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
+            renderPdf(currentPdfFile);
+        } else {
+            // Reset if the user selects an old PDF from the list that we don't have the file for
+            currentPdfFile = null;
+            pdfCanvas.style.display = 'none';
+            pdfViewer.querySelector('.pdf-placeholder').style.display = 'flex';
+            pdfViewer.querySelector('.pdf-placeholder h3').textContent = "PDF Preview Not Available";
+            pdfViewer.querySelector('.pdf-placeholder p').textContent = "Please re-upload the file to view it.";
+        }
         generateQuizBtn.disabled = false;
     } else {
-        pdfFrame.src = '';
-        pdfFrame.style.display = 'none';
+        currentPdfFile = null;
+        pdfCanvas.style.display = 'none';
         pdfViewer.querySelector('.pdf-placeholder').style.display = 'flex';
+        pdfViewer.querySelector('.pdf-placeholder h3').textContent = "No PDF Selected";
+        pdfViewer.querySelector('.pdf-placeholder p').textContent = "Upload or select a PDF to view it here";
         generateQuizBtn.disabled = true;
     }
 }
+
+
+// New function to render PDF using PDF.js
+async function renderPdf(file) {
+    const fileReader = new FileReader();
+    fileReader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        
+        // Use the PDF.js library
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        const page = await pdf.getPage(1); // Render the first page
+        const viewport = page.getViewport({ scale: 1.5 });
+
+        const canvas = pdfCanvas;
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+        };
+        page.render(renderContext);
+        
+        canvas.style.display = 'block';
+        pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
+    };
+    fileReader.readAsArrayBuffer(file);
+}
+
 
 // Quiz Lifecycle
 async function generateQuiz() {
@@ -284,7 +332,6 @@ function displayFeedback(feedbackData) {
     feedbackData.forEach((fb, index) => {
         if (questionCards[index]) {
             const feedbackCard = questionCards[index].querySelector('.feedback-card');
-            // A simple check to determine if the answer was correct-ish
             const isCorrect = fb.feedback.toLowerCase().includes('correct') || fb.feedback.toLowerCase().includes('good');
             feedbackCard.innerHTML = `
                 <div class="feedback-header">
@@ -298,7 +345,6 @@ function displayFeedback(feedbackData) {
             feedbackCard.style.display = 'block';
         }
     });
-    // Disable form elements after submission
     document.querySelectorAll('#quizForm input, #quizForm textarea, #quizForm button').forEach(el => el.disabled = true);
 }
 
@@ -331,9 +377,13 @@ function renderProgress(attempts) {
     const avg = Math.round(totalScore / attempts.length);
     progressAverage.textContent = `${avg}%`;
 
+    // Update Quick Stats average score as well
+    document.getElementById('avgScore').textContent = `${avg}%`;
+
+    // Fix: Correctly parse ISO date string from the backend
     attemptsList.innerHTML = attempts.map(attempt => `
         <div class="attempt-item">
-            <span class="attempt-date">${new Date(attempt.timestamp.$date.$numberLong / 1).toLocaleDateString()}</span>
+            <span class="attempt-date">${new Date(attempt.timestamp).toLocaleDateString()}</span>
             <span class="attempt-score">${attempt.score || 'N/A'}</span>
         </div>
     `).join('');

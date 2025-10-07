@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 </head>
 <body>
     <!-- Header Navigation -->
@@ -99,19 +100,22 @@
         </aside>
 
         <!-- Main Content Area -->
-        <div class="main-content">
-            <!-- Quiz View -->
-            <div id="quizView" class="content-view active">
-                <!-- PDF Viewer -->
-                <div class="pdf-viewer" id="pdfViewer">
+            <div class="main-content">
+                <!-- Quiz View -->
+                <div id="quizView" class="content-view active">
+                    <!-- PDF Viewer -->
+                    <div class="pdf-viewer" id="pdfViewer">
                     <div class="pdf-placeholder">
                         <i class="fas fa-file-pdf"></i>
                         <h3>No PDF Selected</h3>
                         <p>Upload or select a PDF to view it here</p>
                     </div>
-                    <iframe id="pdfFrame" style="display: none;"></iframe>
+                    <canvas id="pdfCanvas" style="display: none;"></canvas>
+                    </div>
                 </div>
+            </div>
 
+            
                 <!-- Quiz Container -->
                 <div class="quiz-container" id="quizContainer">
                     <div class="quiz-placeholder">
@@ -206,6 +210,6 @@
         </div>
     </div>
 
-    <script src="static/script.js></script>
+    <script src="static/script.js"></script>
 </body>
 </html>
