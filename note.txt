@@ -1,0 +1,8 @@
+1. claude was able to complete the code till here
+2. complete the remaining part of the code/project
+3. show me the recommeded file strcture and tasks remaining , and features with files let it all 
+
+i am mostly working on the file at once , so i won't ask to rewrite the files once the project , once it has moved on next file, so whatever features it has implement in that file , let it do it all at once
+
+
+

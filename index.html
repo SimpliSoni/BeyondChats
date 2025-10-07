@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuizGenius - AI-Powered Study Assistant</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header Navigation -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-graduation-cap"></i>
+                <span>QuizGenius</span>
+            </div>
+            <nav class="header-nav">
+                <button class="nav-btn active" data-view="quiz">
+                    <i class="fas fa-brain"></i>
+                    <span>Quiz</span>
+                </button>
+                <button class="nav-btn" data-view="progress">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Progress</span>
+                </button>
+                <button class="nav-btn theme-toggle" id="themeToggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Study Materials</h2>
+                <button class="btn-icon" id="refreshPDFs">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <label for="fileInput" class="upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span class="upload-text">Drop PDF here or click to browse</span>
+                    <span class="upload-hint">Max file size: 16MB</span>
+                    <input type="file" id="fileInput" accept=".pdf" hidden>
+                </label>
+                <div class="upload-progress" id="uploadProgress">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <span class="progress-text">Uploading...</span>
+                </div>
+            </div>
+
+            <!-- PDF Selection -->
+            <div class="pdf-section">
+                <label class="section-label">Select PDF</label>
+                <div class="select-wrapper">
+                    <select id="pdfSelect" class="modern-select">
+                        <option value="">Choose a PDF...</option>
+                    </select>
+                    <i class="fas fa-chevron-down select-icon"></i>
+                </div>
+            </div>
+
+            <!-- Quiz Controls -->
+            <div class="quiz-controls">
+                <button id="generateQuizBtn" class="btn btn-primary btn-large">
+                    <i class="fas fa-magic"></i>
+                    Generate Quiz
+                </button>
+                <button id="newQuizBtn" class="btn btn-secondary btn-large" style="display: none;">
+                    <i class="fas fa-redo"></i>
+                    New Quiz
+                </button>
+            </div>
+
+            <!-- Stats Card -->
+            <div class="stats-card">
+                <h3>Quick Stats</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Total Quizzes</span>
+                    <span class="stat-value" id="totalQuizzes">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Average Score</span>
+                    <span class="stat-value" id="avgScore">0%</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Quiz View -->
+            <div id="quizView" class="content-view active">
+                <!-- PDF Viewer -->
+                <div class="pdf-viewer" id="pdfViewer">
+                    <div class="pdf-placeholder">
+                        <i class="fas fa-file-pdf"></i>
+                        <h3>No PDF Selected</h3>
+                        <p>Upload or select a PDF to view it here</p>
+                    </div>
+                    <iframe id="pdfFrame" style="display: none;"></iframe>
+                </div>
+
+                <!-- Quiz Container -->
+                <div class="quiz-container" id="quizContainer">
+                    <div class="quiz-placeholder">
+                        <i class="fas fa-question-circle"></i>
+                        <h3>Ready to Learn?</h3>
+                        <p>Select a PDF and generate a quiz to test your knowledge</p>
+                        <div class="feature-list">
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Multiple Choice Questions</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Short Answer Questions</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Long Answer Questions</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress View -->
+            <div id="progressView" class="content-view">
+                <div class="progress-header">
+                    <h2>Your Learning Journey</h2>
+                    <p>Track your progress and identify areas for improvement</p>
+                </div>
+                <div class="progress-grid">
+                    <div class="progress-card">
+                        <div class="progress-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <h3>Total Attempts</h3>
+                        <p class="progress-value" id="progressAttempts">0</p>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-icon">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <h3>Average Score</h3>
+                        <p class="progress-value" id="progressAverage">0%</p>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3>Improvement</h3>
+                        <p class="progress-value" id="progressTrend">+0%</p>
+                    </div>
+                </div>
+                <div class="recent-attempts">
+                    <h3>Recent Attempts</h3>
+                    <div id="attemptsList" class="attempts-list"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loadingText">Generating your quiz...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <i class="toast-icon fas fa-check-circle"></i>
+        <span class="toast-message"></span>
+    </div>
+
+    <!-- Score Modal -->
+    <div class="modal" id="scoreModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Quiz Results</h2>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="scoreContent">
+                <!-- Score content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="reviewAnswers">Review Answers</button>
+                <button class="btn btn-primary" id="tryAgain">Try Another Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
