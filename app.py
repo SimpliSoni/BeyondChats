@@ -23,7 +23,7 @@ app.config['UPLOAD_FOLDER'] = '/tmp'
 try:
     # Configure the Gemini API client
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     # Configure MongoDB client
     client = MongoClient(os.getenv("MONGO_URI"))
