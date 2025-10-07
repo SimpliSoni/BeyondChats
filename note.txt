@@ -1,8 +1,0 @@
-1. Help me install all dependcies 
-2. Get gemini api and setup
-3. Setup mongodb atlas and get it's api
-4. Deploy the project to vercel 
-
-give me detailed setps to do all this 
-
-anaylze the remaining steps from the pdf , what to implement , crtitique the project and the UI based on the evaluation criteria too
