@@ -1,0 +1,6 @@
+Flask
+pymongo[srv]
+python-dotenv
+PyPDF2
+google-generativeai
+gunicorn
