@@ -21,7 +21,7 @@ app.config['UPLOAD_FOLDER'] = '/tmp'
 # --- Gemini AI and MongoDB Setup ---
 try:
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    model = genai.GenerativeModel('gemini-2.5-flash') # Updated model
+    model = genai.GenerativeModel('gemini-2.5-flash')
     client = MongoClient(os.getenv("MONGO_URI"))
     db = client.school_reviser_db
     pdfs_collection = db.pdfs
@@ -117,7 +117,6 @@ def generate_quiz():
     except Exception as e:
         return jsonify({"error": f"Failed to generate quiz: {e}"}), 500
 
-# NEW CHAT ENDPOINT
 @app.route('/api/chat', methods=['POST'])
 def handle_chat():
     data = request.get_json()
@@ -153,9 +152,81 @@ def handle_chat():
 
         return jsonify({"response": ai_response}), 200
     except Exception as e:
-        print(f"Chat API Error: {e}") # For debugging on the server
+        print(f"Chat API Error: {e}")
         return jsonify({"error": f"An error occurred while getting the AI response: {e}"}), 500
 
+# NEW: YouTube Video Recommendations Endpoint
+@app.route('/api/recommend-videos', methods=['POST'])
+def recommend_videos():
+    """
+    Generates YouTube video recommendations based on the content of a selected PDF.
+    Uses the Gemini API to analyze the PDF text and suggest relevant educational videos.
+    """
+    data = request.get_json()
+    pdf_id = data.get('pdfId')
+    
+    if not pdf_id:
+        return jsonify({"error": "PDF ID is required."}), 400
+    
+    try:
+        # Retrieve the PDF document from MongoDB
+        pdf_doc = pdfs_collection.find_one({"_id": ObjectId(pdf_id)})
+        if not pdf_doc or not pdf_doc.get('extracted_text'):
+            return jsonify({"error": "PDF not found or has no text content."}), 404
+        
+        # Get the extracted text (limit to first 3000 words for efficiency)
+        text_content = " ".join(pdf_doc['extracted_text'].split()[:3000])
+        
+        # Create a detailed prompt for Gemini AI
+        prompt = f"""
+        You are an expert educational content curator specializing in finding the best YouTube videos for students.
+        
+        Analyze the following educational text and identify the key topics, concepts, and subject areas covered.
+        Based on this analysis, recommend exactly 5 highly relevant, educational YouTube videos that would help 
+        a student learn more about these topics.
+        
+        For each recommendation, provide:
+        1. A clear, descriptive title for the video topic (not the actual video title, but what the student should search for)
+        2. A YouTube search URL in the format: https://www.youtube.com/results?search_query=YOUR+SEARCH+TERMS
+        
+        Make sure the search terms are specific, educational, and directly related to the content. Use proper URL encoding 
+        (spaces as +, special characters encoded).
+        
+        Return ONLY a valid JSON object with this exact structure:
+        {{
+          "recommendations": [
+            {{
+              "title": "Clear descriptive title",
+              "url": "https://www.youtube.com/results?search_query=encoded+search+terms"
+            }}
+          ]
+        }}
+        
+        Educational Text Content:
+        ---
+        {text_content}
+        ---
+        
+        JSON Response:
+        """
+        
+        # Call Gemini API to generate recommendations
+        response = model.generate_content(prompt)
+        cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
+        
+        # Parse the JSON response
+        recommendations_data = json.loads(cleaned_response)
+        
+        # Validate the response structure
+        if "recommendations" not in recommendations_data:
+            return jsonify({"error": "Invalid response format from AI."}), 500
+        
+        return jsonify(recommendations_data), 200
+        
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Failed to parse AI response: {e}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate video recommendations: {e}"}), 500
 
 @app.route('/api/score-quiz', methods=['POST'])
 def score_quiz():

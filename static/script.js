@@ -24,6 +24,13 @@ const attemptsList = document.getElementById('attemptsList');
 const progressAttempts = document.getElementById('progressAttempts');
 const progressAverage = document.getElementById('progressAverage');
 
+// NEW: Video recommendation elements
+const getVideoRecsBtn = document.getElementById('getVideoRecsBtn');
+const videoModal = document.getElementById('videoModal');
+const closeVideoModal = document.getElementById('closeVideoModal');
+const closeVideoModalBtn = document.getElementById('closeVideoModalBtn');
+const videoContent = document.getElementById('videoContent');
+
 // State
 let currentQuiz = null;
 let currentPdfFile = null;
@@ -61,6 +68,11 @@ function setupEventListeners() {
         scoreModal.classList.remove('active');
         newQuizBtn.click();
     });
+
+    // NEW: Video recommendations event listeners
+    getVideoRecsBtn.addEventListener('click', getYouTubeRecommendations);
+    closeVideoModal.addEventListener('click', () => videoModal.classList.remove('active'));
+    closeVideoModalBtn.addEventListener('click', () => videoModal.classList.remove('active'));
 
     const uploadArea = document.querySelector('.upload-area');
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -200,7 +212,7 @@ async function renderPdf(file) {
     fileReader.readAsArrayBuffer(file);
 }
 
-// Quiz Lifecycle (rest of the functions remain the same)
+// Quiz Lifecycle
 async function generateQuiz() {
     if (!currentPdfId) {
         showToast('Please select a PDF first.', 'warning');
@@ -335,6 +347,109 @@ function displayFeedback(feedbackData) {
     document.querySelectorAll('#quizForm input, #quizForm textarea, #quizForm button').forEach(el => el.disabled = true);
 }
 
+// NEW: YouTube Video Recommendations Feature
+/**
+ * Fetches and displays YouTube video recommendations based on the selected PDF content
+ */
+async function getYouTubeRecommendations() {
+    // Check if a PDF is selected
+    if (!currentPdfId) {
+        showToast('Please select a PDF first to get video recommendations.', 'warning');
+        return;
+    }
+
+    // Show loading state
+    showLoading('Finding the best educational videos for you...');
+
+    try {
+        // Make API call to get video recommendations
+        const response = await fetch('/api/recommend-videos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdfId: currentPdfId }),
+        });
+
+        const data = await response.json();
+        
+        // Check for errors
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to get video recommendations');
+        }
+
+        // Display the recommendations
+        displayVideoRecommendations(data.recommendations);
+        showToast('Video recommendations ready!', 'success');
+
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+        console.error('Video recommendations error:', error);
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Displays the video recommendations in a modal
+ * @param {Array} recommendations - Array of video recommendation objects
+ */
+function displayVideoRecommendations(recommendations) {
+    // Check if we have recommendations
+    if (!recommendations || recommendations.length === 0) {
+        videoContent.innerHTML = `
+            <div class="video-empty-state">
+                <i class="fas fa-video-slash"></i>
+                <p>No video recommendations available at this time.</p>
+            </div>
+        `;
+        videoModal.classList.add('active');
+        return;
+    }
+
+    // Create HTML for the video list
+    const videoListHTML = `
+        <div class="video-recommendations-intro">
+            <p>Here are some carefully curated educational videos to help you learn more about the topics in your PDF:</p>
+        </div>
+        <ul class="video-list">
+            ${recommendations.map((video, index) => `
+                <li class="video-item">
+                    <div class="video-number">${index + 1}</div>
+                    <div class="video-info">
+                        <h4 class="video-title">${escapeHtml(video.title)}</h4>
+                        <a href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" class="video-link">
+                            <i class="fab fa-youtube"></i>
+                            Watch on YouTube
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </div>
+                </li>
+            `).join('')}
+        </ul>
+        <div class="video-recommendations-footer">
+            <p class="video-hint">
+                <i class="fas fa-info-circle"></i>
+                These videos are curated based on your PDF content to enhance your learning experience.
+            </p>
+        </div>
+    `;
+
+    // Insert the HTML into the modal
+    videoContent.innerHTML = videoListHTML;
+
+    // Show the modal
+    videoModal.classList.add('active');
+}
+
+/**
+ * Escapes HTML to prevent XSS attacks
+ * @param {string} text - Text to escape
+ * @returns {string} - Escaped text
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
 // Progress Tracking
 async function loadProgress() {
@@ -372,7 +487,6 @@ function renderProgress(attempts) {
         </div>
     `).join('');
 }
-
 
 // UI Helpers
 function showLoading(text) {
