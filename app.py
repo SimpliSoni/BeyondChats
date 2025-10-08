@@ -3,14 +3,13 @@ import uuid
 import json
 import time
 import google.generativeai as genai
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
 from bson import ObjectId
 import PyPDF2
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 import datetime
-import magic
 
 # --- Initialization ---
 load_dotenv()
@@ -18,10 +17,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # --- Configuration ---
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-
-# Create uploads directory if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# Note: No UPLOAD_FOLDER needed for serverless deployment
 
 # --- Gemini AI and MongoDB Setup ---
 try:
@@ -98,37 +94,27 @@ def upload_pdf():
         return jsonify({"error": "No selected file"}), 400
 
     if file and file.filename.endswith('.pdf'):
+        original_filename = secure_filename(file.filename)
+
         try:
-            # Validate MIME type
-            file_head = file.stream.read(2048)
-            file.stream.seek(0)
-            mime_type = magic.from_buffer(file_head, mime=True)
-            
-            if mime_type != 'application/pdf':
-                return jsonify({"error": "Invalid file type. Please upload a valid PDF."}), 400
-            
-            original_filename = secure_filename(file.filename)
-            
-            # Extract text first
-            reader = PyPDF2.PdfReader(file.stream)
-            extracted_text = "".join(page.extract_text() for page in reader.pages if page.extract_text())
-            
+            # Process the file in-memory without saving to disk
+            pdf_reader = PyPDF2.PdfReader(file.stream)
+            extracted_text = "".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
+
             if not extracted_text:
                 return jsonify({"error": "Could not extract text from PDF."}), 400
-            
-            # Save to database
-            pdf_doc = {"filename": original_filename, "extracted_text": extracted_text}
+
+            pdf_doc = {
+                "filename": original_filename,
+                "extracted_text": extracted_text,
+                "uploaded_at": datetime.datetime.utcnow()
+            }
             result = pdfs_collection.insert_one(pdf_doc)
-            new_id = str(result.inserted_id)
-            
-            # Save file with ID as filename for persistence
-            file.stream.seek(0)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], f"{new_id}.pdf"))
-            
+
             return jsonify({
                 "success": True,
                 "message": "File uploaded and processed.",
-                "pdf_id": new_id
+                "pdf_id": str(result.inserted_id)
             }), 201
         except Exception as e:
             return jsonify({"error": f"Failed to process PDF: {e}"}), 500
@@ -313,22 +299,6 @@ def get_progress():
         return jsonify({"attempts": [serialize_doc(attempt) for attempt in attempts]}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve progress: {e}"}), 500
-
-# NEW ENDPOINT: Serve PDF files
-@app.route('/api/pdf/<pdf_id>')
-def get_pdf_file(pdf_id):
-    """Serve a PDF file by its ID."""
-    try:
-        if not ObjectId.is_valid(pdf_id):
-            return jsonify({"error": "Invalid PDF ID."}), 400
-        
-        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{pdf_id}.pdf")
-        if not os.path.exists(pdf_path):
-            return jsonify({"error": "PDF file not found."}), 404
-        
-        return send_from_directory(app.config['UPLOAD_FOLDER'], f"{pdf_id}.pdf")
-    except Exception as e:
-        return jsonify({"error": f"Error serving PDF: {e}"}), 500
 
 # --- Frontend Serving ---
 @app.route('/')

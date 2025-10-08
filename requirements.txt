@@ -4,4 +4,3 @@ python-dotenv
 PyPDF2
 google-generativeai
 gunicorn
-python-magic

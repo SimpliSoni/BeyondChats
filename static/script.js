@@ -155,7 +155,17 @@ async function handleFileUpload(event) {
         showToast('PDF uploaded successfully!', 'success');
         await loadPDFs();
         pdfSelect.value = data.pdf_id;
-        handlePdfSelect();
+        
+        // Render the PDF immediately since we still have it in memory
+        renderPdf(file);
+        
+        // Update state
+        window.currentPdfId = data.pdf_id;
+        const chatPdfContext = document.getElementById('chatPdfContext');
+        if (chatPdfContext) {
+            chatPdfContext.textContent = `Discussing: ${file.name}`;
+        }
+        generateQuizBtn.disabled = false;
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
@@ -169,39 +179,25 @@ async function handlePdfSelect() {
     window.currentPdfId = selectedOption.value;
 
     if (window.currentPdfId) {
-        showLoading("Loading PDF...");
-        
         // Update chat context indicator
         const chatPdfContext = document.getElementById('chatPdfContext');
         if (chatPdfContext) {
             chatPdfContext.textContent = `Discussing: ${selectedOption.textContent}`;
         }
         
-        // Try to load PDF from server
-        try {
-            const response = await fetch(`/api/pdf/${window.currentPdfId}`);
-            if (response.ok) {
-                const blob = await response.blob();
-                const file = new File([blob], selectedOption.textContent, { type: 'application/pdf' });
-                renderPdf(file);
-            } else {
-                // PDF file not available on server
-                pdfCanvas.style.display = 'none';
-                const placeholder = pdfViewer.querySelector('.pdf-placeholder');
-                placeholder.style.display = 'flex';
-                placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
-                placeholder.querySelector('p').textContent = "Re-upload the file to view it, or select a newly uploaded PDF.";
-            }
-        } catch (error) {
-            console.error('Error loading PDF:', error);
+        // Check if we have the file in memory
+        if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
+            renderPdf(currentPdfFile);
+        } else {
+            // Can't re-render PDFs in serverless environment
+            currentPdfFile = null;
             pdfCanvas.style.display = 'none';
             const placeholder = pdfViewer.querySelector('.pdf-placeholder');
             placeholder.style.display = 'flex';
             placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
-            placeholder.querySelector('p').textContent = "Could not load PDF preview.";
+            placeholder.querySelector('p').textContent = "The PDF was processed successfully, but preview is only available for newly uploaded files in this deployment.";
         }
         
-        hideLoading();
         generateQuizBtn.disabled = false;
     } else {
         currentPdfFile = null;

@@ -39,9 +39,6 @@ instance/
 *.log
 logs/
 
-# Uploaded files
-static/uploads/
-
 # Distribution / packaging
 .Python
 build/
@@ -66,6 +63,9 @@ wheels/
 htmlcov/
 .tox/
 
+# OS files
+Thumbs.db
+.DS_Store
 # OS files
 Thumbs.db
 .DS_Store
