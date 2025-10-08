@@ -49,7 +49,7 @@ function setupChatEventListeners() {
     chatElements.input.addEventListener('input', handleInputChange);
     chatElements.input.addEventListener('keydown', handleInputKeydown);
     chatElements.sidebarToggle.addEventListener('click', toggleSidebar);
-    
+
     document.querySelectorAll('.suggestion-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
             const suggestion = e.currentTarget.dataset.suggestion;
@@ -58,7 +58,7 @@ function setupChatEventListeners() {
             sendMessage();
         });
     });
-    
+
     document.addEventListener('click', (e) => {
         if (window.innerWidth <= 768 && !chatElements.sidebar.contains(e.target) && !chatElements.sidebarToggle.contains(e.target) && chatElements.sidebar.classList.contains('open')) {
             toggleSidebar();
@@ -97,51 +97,52 @@ async function sendMessage() {
     const message = chatElements.input.value.trim();
     if (!message || chatState.isTyping) return;
 
-    // MODIFIED: Check if a PDF is selected before sending a message
-    if (!currentPdfId) {
+    if (!window.currentPdfId) {
         showToast('Please select a PDF before starting a chat.', 'warning');
         return;
     }
-    
+
     if (!chatState.currentChatId) {
         createNewChat();
     }
-    
+
     addMessageToUI('user', message);
     chatElements.input.value = '';
     autoResizeTextarea();
     handleInputChange();
-    
+
     const currentChat = getCurrentChat();
     currentChat.messages.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
     saveChatHistory();
     showTypingIndicator();
-    
+
     try {
-        // MODIFIED: Send currentPdfId with the request
+        // FIXED: Implement sliding window for chat history
+        const history = currentChat.messages.slice(-10);
+
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: message,
-                pdfId: currentPdfId, // Sending the active PDF ID
-                history: currentChat.messages,
+                pdfId: window.currentPdfId,
+                history: history, // Send only the last 10 messages
             }),
         });
-        
+
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to get response');
-        
+
         hideTypingIndicator();
         addMessageToUI('ai', data.response);
-        
+
         currentChat.messages.push({ role: 'ai', content: data.response, timestamp: new Date().toISOString() });
         if (currentChat.messages.length === 2) {
             currentChat.title = generateChatTitle(message);
             updateChatHistoryUI();
         }
         saveChatHistory();
-        
+
     } catch (error) {
         hideTypingIndicator();
         addMessageToUI('ai', `Sorry, I encountered an error: ${error.message}`);
@@ -151,13 +152,13 @@ async function sendMessage() {
 function addMessageToUI(role, content) {
     const welcome = chatElements.messagesContainer.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = `chat-message ${role}`;
-    
+
     const avatar = `<div class="chat-message-avatar"><i class="fas ${role === 'user' ? 'fa-user' : 'fa-robot'}"></i></div>`;
     const bubble = `<div class="chat-message-content"><div class="chat-message-bubble">${escapeHtml(content).replace(/\n/g, '<br>')}</div><span class="chat-message-time">${formatTime(new Date())}</span></div>`;
-    
+
     messageDiv.innerHTML = avatar + bubble;
     chatElements.messagesContainer.appendChild(messageDiv);
     scrollToBottom();
@@ -166,7 +167,7 @@ function addMessageToUI(role, content) {
 function showTypingIndicator() {
     chatState.isTyping = true;
     chatElements.sendBtn.disabled = true;
-    
+
     if (document.getElementById('typingIndicator')) return;
 
     const typingDiv = document.createElement('div');
@@ -205,31 +206,31 @@ function createNewChat() {
         messages: [],
         createdAt: new Date().toISOString(),
     };
-    
+
     chatState.chats.unshift(newChat);
     chatState.currentChatId = newChat.id;
-    
+
     clearMessages();
     showWelcomeScreen();
     updateChatHistoryUI();
     saveChatHistory();
-    
+
     if (window.innerWidth <= 768) toggleSidebar(false);
 }
 
 function loadChat(chatId) {
     const chat = chatState.chats.find(c => c.id === chatId);
     if (!chat) return;
-    
+
     chatState.currentChatId = chatId;
     clearMessages();
-    
+
     if (chat.messages.length === 0) {
         showWelcomeScreen();
     } else {
         chat.messages.forEach(msg => addMessageToUI(msg.role, msg.content));
     }
-    
+
     updateChatHistoryUI();
     if (window.innerWidth <= 768) toggleSidebar(false);
 }
@@ -257,7 +258,7 @@ function showWelcomeScreen() {
             </div>
         </div>`;
     chatElements.messagesContainer.innerHTML = welcomeHTML;
-    
+
     document.querySelectorAll('.suggestion-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
             const suggestion = e.currentTarget.dataset.suggestion;
@@ -276,14 +277,14 @@ function updateChatHistoryUI() {
         chatElements.historyList.innerHTML = `<div class="chat-history-empty"><i class="fas fa-comments"></i><p>No conversations yet.</p></div>`;
         return;
     }
-    
+
     chatElements.historyList.innerHTML = chatState.chats.map(chat => `
         <div class="chat-history-item ${chat.id === chatState.currentChatId ? 'active' : ''}" data-chat-id="${chat.id}">
             <i class="fas fa-comment-dots chat-history-icon"></i>
             <span class="chat-history-title">${escapeHtml(chat.title)}</span>
         </div>
     `).join('');
-    
+
     document.querySelectorAll('.chat-history-item').forEach(item => {
         item.addEventListener('click', () => loadChat(item.dataset.chatId));
     });
