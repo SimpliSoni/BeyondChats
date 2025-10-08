@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+import time
 import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
@@ -32,15 +33,55 @@ except Exception as e:
 
 # --- Helper for JSON serialization ---
 def serialize_doc(doc):
-    """Converts a MongoDB doc to a JSON-serializable format."""
-    if doc:
-        doc['_id'] = str(doc.get('_id'))
+    """Recursively converts a MongoDB doc to a JSON-serializable format."""
+    if isinstance(doc, list):
+        return [serialize_doc(item) for item in doc]
+    if isinstance(doc, dict):
+        serialized = {}
         for key, value in doc.items():
             if isinstance(value, ObjectId):
-                doc[key] = str(value)
-            if isinstance(value, datetime.datetime):
-                doc[key] = value.isoformat()
+                serialized[key] = str(value)
+            elif isinstance(value, datetime.datetime):
+                serialized[key] = value.isoformat()
+            elif isinstance(value, (dict, list)):
+                serialized[key] = serialize_doc(value)
+            else:
+                serialized[key] = value
+        return serialized
+    if isinstance(doc, ObjectId):
+        return str(doc)
+    if isinstance(doc, datetime.datetime):
+        return doc.isoformat()
     return doc
+
+# --- Gemini API Retry Logic ---
+def generate_with_retry(model, prompt, retries=3, delay=2):
+    """
+    Calls the Gemini API with exponential backoff retry logic.
+    
+    Args:
+        model: The Gemini model instance
+        prompt: The prompt to send
+        retries: Number of retry attempts
+        delay: Initial delay in seconds (doubles with each retry)
+    
+    Returns:
+        The API response
+    
+    Raises:
+        Exception: If all retries fail
+    """
+    for i in range(retries):
+        try:
+            return model.generate_content(prompt)
+        except Exception as e:
+            if i < retries - 1:
+                wait_time = delay ** (i + 1)
+                print(f"API call failed (attempt {i+1}/{retries}): {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"API call failed after {retries} attempts: {e}")
+                raise e
 
 # --- API Endpoints ---
 
@@ -110,7 +151,7 @@ def generate_quiz():
 
         Text content: --- {text_content} ---
         """
-        response = model.generate_content(prompt)
+        response = generate_with_retry(model, prompt)
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
         quiz_data = json.loads(cleaned_response)
         return jsonify(quiz_data), 200
@@ -147,7 +188,7 @@ def handle_chat():
 
         Your Answer:
         """
-        response = model.generate_content(prompt)
+        response = generate_with_retry(model, prompt)
         ai_response = response.text
 
         return jsonify({"response": ai_response}), 200
@@ -169,15 +210,12 @@ def recommend_videos():
         return jsonify({"error": "PDF ID is required."}), 400
     
     try:
-        # Retrieve the PDF document from MongoDB
         pdf_doc = pdfs_collection.find_one({"_id": ObjectId(pdf_id)})
         if not pdf_doc or not pdf_doc.get('extracted_text'):
             return jsonify({"error": "PDF not found or has no text content."}), 404
         
-        # Get the extracted text (limit to first 3000 words for efficiency)
         text_content = " ".join(pdf_doc['extracted_text'].split()[:3000])
         
-        # Create a detailed prompt for Gemini AI
         prompt = f"""
         You are an expert educational content curator specializing in finding the best YouTube videos for students.
         
@@ -210,14 +248,11 @@ def recommend_videos():
         JSON Response:
         """
         
-        # Call Gemini API to generate recommendations
-        response = model.generate_content(prompt)
+        response = generate_with_retry(model, prompt)
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
         
-        # Parse the JSON response
         recommendations_data = json.loads(cleaned_response)
         
-        # Validate the response structure
         if "recommendations" not in recommendations_data:
             return jsonify({"error": "Invalid response format from AI."}), 500
         
@@ -240,7 +275,7 @@ def score_quiz():
     Return ONLY a single valid JSON object with "score" (e.g., "85%"), "overallFeedback", and an array "questionFeedback" with feedback for each question.
     """
     try:
-        response = model.generate_content(prompt)
+        response = generate_with_retry(model, prompt)
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
         scoring_result = json.loads(cleaned_response)
 

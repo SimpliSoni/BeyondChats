@@ -35,8 +35,8 @@ const videoContent = document.getElementById('videoContent');
 let currentQuiz = null;
 let currentPdfFile = null;
 
-// MODIFIED: 'currentPdfId' is now global to be accessible by chat-script.js
-let currentPdfId = null;
+// Make currentPdfId globally accessible via window object
+window.currentPdfId = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', initializeApp);
@@ -166,9 +166,10 @@ async function handleFileUpload(event) {
 
 async function handlePdfSelect() {
     const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
-    currentPdfId = selectedOption.value; // This now updates the global variable
+    window.currentPdfId = selectedOption.value; // Update global reference
 
-    if (currentPdfId) {
+    if (window.currentPdfId) {
+        showLoading("Loading PDF..."); // Show loading indicator
         if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
             renderPdf(currentPdfFile);
         } else {
@@ -179,9 +180,11 @@ async function handlePdfSelect() {
             placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
             placeholder.querySelector('p').textContent = "Re-upload the file to view it, or select a newly uploaded PDF.";
         }
+        hideLoading(); // Hide loading indicator
         generateQuizBtn.disabled = false;
     } else {
         currentPdfFile = null;
+        window.currentPdfId = null; // Ensure it's cleared
         pdfCanvas.style.display = 'none';
         const placeholder = pdfViewer.querySelector('.pdf-placeholder');
         placeholder.style.display = 'flex';
@@ -214,7 +217,7 @@ async function renderPdf(file) {
 
 // Quiz Lifecycle
 async function generateQuiz() {
-    if (!currentPdfId) {
+    if (!window.currentPdfId) { // Use window.currentPdfId
         showToast('Please select a PDF first.', 'warning');
         return;
     }
@@ -223,7 +226,7 @@ async function generateQuiz() {
         const response = await fetch('/api/generate-quiz', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: currentPdfId }),
+            body: JSON.stringify({ pdfId: window.currentPdfId }), // Use window.currentPdfId
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Quiz generation failed');
@@ -287,6 +290,9 @@ function renderQuiz(quizData) {
 
 async function handleQuizSubmit(event) {
     event.preventDefault();
+    const submitButton = event.target.querySelector('.submit-quiz-btn');
+    submitButton.disabled = true; // Immediately disable the button
+    
     const formData = new FormData(event.target);
     const userAnswers = {};
     formData.forEach((value, key) => {
@@ -299,7 +305,7 @@ async function handleQuizSubmit(event) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                pdfId: currentPdfId,
+                pdfId: window.currentPdfId, // Use window.currentPdfId
                 quizQuestions: currentQuiz,
                 userAnswers: userAnswers
             }),
@@ -309,200 +315,4 @@ async function handleQuizSubmit(event) {
 
         displayScore(result);
         displayFeedback(result.questionFeedback);
-    } catch (error) {
-        showToast(error.message, 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-function displayScore(result) {
-    scoreContent.innerHTML = `
-        <div class="score-display">
-            <div class="score-circle"><span class="score-percentage">${result.score}</span></div>
-            <h3 class="score-message">Great Effort!</h3>
-            <p class="score-details">${result.overallFeedback}</p>
-        </div>`;
-    scoreModal.classList.add('active');
-}
-
-function displayFeedback(feedbackData) {
-    const questionCards = document.querySelectorAll('.question-card');
-    feedbackData.forEach((fb, index) => {
-        if (questionCards[index]) {
-            const feedbackCard = questionCards[index].querySelector('.feedback-card');
-            const isCorrect = fb.feedback.toLowerCase().includes('correct') || fb.feedback.toLowerCase().includes('good');
-            feedbackCard.innerHTML = `
-                <div class="feedback-header">
-                    <span class="feedback-icon ${isCorrect ? 'correct' : 'incorrect'}">
-                        <i class="fas ${isCorrect ? 'fa-check' : 'fa-times'}"></i>
-                    </span>
-                    <h4>Feedback</h4>
-                </div>
-                <p class="feedback-text">${fb.feedback}</p>
-            `;
-            feedbackCard.style.display = 'block';
-        }
-    });
-    document.querySelectorAll('#quizForm input, #quizForm textarea, #quizForm button').forEach(el => el.disabled = true);
-}
-
-// NEW: YouTube Video Recommendations Feature
-/**
- * Fetches and displays YouTube video recommendations based on the selected PDF content
- */
-async function getYouTubeRecommendations() {
-    // Check if a PDF is selected
-    if (!currentPdfId) {
-        showToast('Please select a PDF first to get video recommendations.', 'warning');
-        return;
-    }
-
-    // Show loading state
-    showLoading('Finding the best educational videos for you...');
-
-    try {
-        // Make API call to get video recommendations
-        const response = await fetch('/api/recommend-videos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: currentPdfId }),
-        });
-
-        const data = await response.json();
-        
-        // Check for errors
-        if (!response.ok) {
-            throw new Error(data.error || 'Failed to get video recommendations');
-        }
-
-        // Display the recommendations
-        displayVideoRecommendations(data.recommendations);
-        showToast('Video recommendations ready!', 'success');
-
-    } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
-        console.error('Video recommendations error:', error);
-    } finally {
-        hideLoading();
-    }
-}
-
-/**
- * Displays the video recommendations in a modal
- * @param {Array} recommendations - Array of video recommendation objects
- */
-function displayVideoRecommendations(recommendations) {
-    // Check if we have recommendations
-    if (!recommendations || recommendations.length === 0) {
-        videoContent.innerHTML = `
-            <div class="video-empty-state">
-                <i class="fas fa-video-slash"></i>
-                <p>No video recommendations available at this time.</p>
-            </div>
-        `;
-        videoModal.classList.add('active');
-        return;
-    }
-
-    // Create HTML for the video list
-    const videoListHTML = `
-        <div class="video-recommendations-intro">
-            <p>Here are some carefully curated educational videos to help you learn more about the topics in your PDF:</p>
-        </div>
-        <ul class="video-list">
-            ${recommendations.map((video, index) => `
-                <li class="video-item">
-                    <div class="video-number">${index + 1}</div>
-                    <div class="video-info">
-                        <h4 class="video-title">${escapeHtml(video.title)}</h4>
-                        <a href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" class="video-link">
-                            <i class="fab fa-youtube"></i>
-                            Watch on YouTube
-                            <i class="fas fa-external-link-alt"></i>
-                        </a>
-                    </div>
-                </li>
-            `).join('')}
-        </ul>
-        <div class="video-recommendations-footer">
-            <p class="video-hint">
-                <i class="fas fa-info-circle"></i>
-                These videos are curated based on your PDF content to enhance your learning experience.
-            </p>
-        </div>
-    `;
-
-    // Insert the HTML into the modal
-    videoContent.innerHTML = videoListHTML;
-
-    // Show the modal
-    videoModal.classList.add('active');
-}
-
-/**
- * Escapes HTML to prevent XSS attacks
- * @param {string} text - Text to escape
- * @returns {string} - Escaped text
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Progress Tracking
-async function loadProgress() {
-    showLoading('Fetching your progress...');
-    try {
-        const response = await fetch('/api/progress');
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch progress');
-
-        renderProgress(data.attempts);
-    } catch (error) {
-        showToast(error.message, 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-function renderProgress(attempts) {
-    progressAttempts.textContent = attempts.length;
-    if (attempts.length === 0) {
-        attemptsList.innerHTML = '<p>No quiz attempts recorded yet.</p>';
-        progressAverage.textContent = '0%';
-        return;
-    }
-
-    const totalScore = attempts.reduce((acc, attempt) => acc + parseInt(attempt.score || '0'), 0);
-    const avg = Math.round(totalScore / attempts.length);
-    progressAverage.textContent = `${avg}%`;
-    document.getElementById('avgScore').textContent = `${avg}%`;
-
-    attemptsList.innerHTML = attempts.map(attempt => `
-        <div class="attempt-item">
-            <span class="attempt-date">${new Date(attempt.timestamp).toLocaleDateString()}</span>
-            <span class="attempt-score">${attempt.score || 'N/A'}</span>
-        </div>
-    `).join('');
-}
-
-// UI Helpers
-function showLoading(text) {
-    loadingText.textContent = text;
-    loadingOverlay.classList.add('active');
-}
-
-function hideLoading() {
-    loadingOverlay.classList.remove('active');
-}
-
-function showToast(message, type = 'success') {
-    const icon = toast.querySelector('.toast-icon');
-    toast.querySelector('.toast-message').textContent = message;
-    toast.className = `toast ${type}`;
-    icon.className = `toast-icon fas ${type === 'success' ? 'fa-check-circle' : 'fa-times-circle'}`;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3000);
-}
+    } catch
