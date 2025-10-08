@@ -6,7 +6,7 @@ const newQuizBtn = document.getElementById('newQuizBtn');
 const refreshPDFsBtn = document.getElementById('refreshPDFs');
 const quizContainer = document.getElementById('quizContainer');
 const pdfViewer = document.getElementById('pdfViewer');
-const pdfCanvas = document.getElementById('pdfCanvas'); // Changed from pdfFrame
+const pdfCanvas = document.getElementById('pdfCanvas');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingText = document.getElementById('loadingText');
 const toast = document.getElementById('toast');
@@ -26,8 +26,10 @@ const progressAverage = document.getElementById('progressAverage');
 
 // State
 let currentQuiz = null;
+let currentPdfFile = null;
+
+// MODIFIED: 'currentPdfId' is now global to be accessible by chat-script.js
 let currentPdfId = null;
-let currentPdfFile = null; // To hold the file for client-side rendering
 
 // Initialize
 document.addEventListener('DOMContentLoaded', initializeApp);
@@ -118,8 +120,6 @@ async function loadPDFs() {
             option.textContent = pdf.filename;
             pdfSelect.appendChild(option);
         });
-
-        // Update Quick Stats in the sidebar
         document.getElementById('totalQuizzes').textContent = data.pdfs.length;
     } catch (error) {
         showToast(`Error loading PDFs: ${error.message}`, 'error');
@@ -130,9 +130,7 @@ async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Store the file for client-side rendering
     currentPdfFile = file;
-
     const formData = new FormData();
     formData.append('file', file);
 
@@ -145,8 +143,6 @@ async function handleFileUpload(event) {
         showToast('PDF uploaded successfully!', 'success');
         await loadPDFs();
         pdfSelect.value = data.pdf_id;
-        
-        // Fix: Call handlePdfSelect to update the PDF viewer
         handlePdfSelect();
     } catch (error) {
         showToast(error.message, 'error');
@@ -158,41 +154,37 @@ async function handleFileUpload(event) {
 
 async function handlePdfSelect() {
     const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
-    currentPdfId = selectedOption.value;
+    currentPdfId = selectedOption.value; // This now updates the global variable
 
     if (currentPdfId) {
-        // If a file was just uploaded, use it. Otherwise, we can't display a PDF from the list.
         if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
             renderPdf(currentPdfFile);
         } else {
-            // Reset if the user selects an old PDF from the list that we don't have the file for
             currentPdfFile = null;
             pdfCanvas.style.display = 'none';
-            pdfViewer.querySelector('.pdf-placeholder').style.display = 'flex';
-            pdfViewer.querySelector('.pdf-placeholder h3').textContent = "PDF Preview Not Available";
-            pdfViewer.querySelector('.pdf-placeholder p').textContent = "Please re-upload the file to view it.";
+            const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+            placeholder.style.display = 'flex';
+            placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
+            placeholder.querySelector('p').textContent = "Re-upload the file to view it, or select a newly uploaded PDF.";
         }
         generateQuizBtn.disabled = false;
     } else {
         currentPdfFile = null;
         pdfCanvas.style.display = 'none';
-        pdfViewer.querySelector('.pdf-placeholder').style.display = 'flex';
-        pdfViewer.querySelector('.pdf-placeholder h3').textContent = "No PDF Selected";
-        pdfViewer.querySelector('.pdf-placeholder p').textContent = "Upload or select a PDF to view it here";
+        const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+        placeholder.style.display = 'flex';
+        placeholder.querySelector('h3').textContent = "No PDF Selected";
+        placeholder.querySelector('p').textContent = "Upload or select a PDF to view it here";
         generateQuizBtn.disabled = true;
     }
 }
 
-
-// New function to render PDF using PDF.js
 async function renderPdf(file) {
     const fileReader = new FileReader();
     fileReader.onload = async function() {
         const typedarray = new Uint8Array(this.result);
-        
-        // Use the PDF.js library
         const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        const page = await pdf.getPage(1); // Render the first page
+        const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 1.5 });
 
         const canvas = pdfCanvas;
@@ -200,11 +192,7 @@ async function renderPdf(file) {
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-        const renderContext = {
-            canvasContext: context,
-            viewport: viewport
-        };
-        page.render(renderContext);
+        page.render({ canvasContext: context, viewport: viewport });
         
         canvas.style.display = 'block';
         pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
@@ -212,8 +200,7 @@ async function renderPdf(file) {
     fileReader.readAsArrayBuffer(file);
 }
 
-
-// Quiz Lifecycle
+// Quiz Lifecycle (rest of the functions remain the same)
 async function generateQuiz() {
     if (!currentPdfId) {
         showToast('Please select a PDF first.', 'warning');
@@ -376,11 +363,8 @@ function renderProgress(attempts) {
     const totalScore = attempts.reduce((acc, attempt) => acc + parseInt(attempt.score || '0'), 0);
     const avg = Math.round(totalScore / attempts.length);
     progressAverage.textContent = `${avg}%`;
-
-    // Update Quick Stats average score as well
     document.getElementById('avgScore').textContent = `${avg}%`;
 
-    // Fix: Correctly parse ISO date string from the backend
     attemptsList.innerHTML = attempts.map(attempt => `
         <div class="attempt-item">
             <span class="attempt-date">${new Date(attempt.timestamp).toLocaleDateString()}</span>
