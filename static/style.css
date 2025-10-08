@@ -1352,3 +1352,22 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-tertiary);
 }
+
+/* Utility classes for better error handling */
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.error-state {
+    padding: 2rem;
+    text-align: center;
+    color: var(--error-color);
+}
+
+.error-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}

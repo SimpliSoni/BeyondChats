@@ -166,31 +166,58 @@ async function handleFileUpload(event) {
 
 async function handlePdfSelect() {
     const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
-    window.currentPdfId = selectedOption.value; // Update global reference
+    window.currentPdfId = selectedOption.value;
 
     if (window.currentPdfId) {
-        showLoading("Loading PDF..."); // Show loading indicator
-        if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
-            renderPdf(currentPdfFile);
-        } else {
-            currentPdfFile = null;
+        showLoading("Loading PDF...");
+        
+        // Update chat context indicator
+        const chatPdfContext = document.getElementById('chatPdfContext');
+        if (chatPdfContext) {
+            chatPdfContext.textContent = `Discussing: ${selectedOption.textContent}`;
+        }
+        
+        // Try to load PDF from server
+        try {
+            const response = await fetch(`/api/pdf/${window.currentPdfId}`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const file = new File([blob], selectedOption.textContent, { type: 'application/pdf' });
+                renderPdf(file);
+            } else {
+                // PDF file not available on server
+                pdfCanvas.style.display = 'none';
+                const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+                placeholder.style.display = 'flex';
+                placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
+                placeholder.querySelector('p').textContent = "Re-upload the file to view it, or select a newly uploaded PDF.";
+            }
+        } catch (error) {
+            console.error('Error loading PDF:', error);
             pdfCanvas.style.display = 'none';
             const placeholder = pdfViewer.querySelector('.pdf-placeholder');
             placeholder.style.display = 'flex';
             placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
-            placeholder.querySelector('p').textContent = "Re-upload the file to view it, or select a newly uploaded PDF.";
+            placeholder.querySelector('p').textContent = "Could not load PDF preview.";
         }
-        hideLoading(); // Hide loading indicator
+        
+        hideLoading();
         generateQuizBtn.disabled = false;
     } else {
         currentPdfFile = null;
-        window.currentPdfId = null; // Ensure it's cleared
+        window.currentPdfId = null;
         pdfCanvas.style.display = 'none';
         const placeholder = pdfViewer.querySelector('.pdf-placeholder');
         placeholder.style.display = 'flex';
         placeholder.querySelector('h3').textContent = "No PDF Selected";
         placeholder.querySelector('p').textContent = "Upload or select a PDF to view it here";
         generateQuizBtn.disabled = true;
+        
+        // Clear chat context
+        const chatPdfContext = document.getElementById('chatPdfContext');
+        if (chatPdfContext) {
+            chatPdfContext.textContent = "No PDF Selected";
+        }
     }
 }
 
@@ -291,7 +318,7 @@ function renderQuiz(quizData) {
 async function handleQuizSubmit(event) {
     event.preventDefault();
     const submitButton = event.target.querySelector('.submit-quiz-btn');
-    submitButton.disabled = true; // Immediately disable the button
+    submitButton.disabled = true;
     
     const formData = new FormData(event.target);
     const userAnswers = {};
@@ -305,7 +332,7 @@ async function handleQuizSubmit(event) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                pdfId: window.currentPdfId, // Use window.currentPdfId
+                pdfId: window.currentPdfId,
                 quizQuestions: currentQuiz,
                 userAnswers: userAnswers
             }),
@@ -315,4 +342,120 @@ async function handleQuizSubmit(event) {
 
         displayScore(result);
         displayFeedback(result.questionFeedback);
-    } catch
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+        submitButton.disabled = false;
+    } finally {
+        hideLoading();
+    }
+}
+
+// Video Recommendations
+async function getYouTubeRecommendations() {
+    if (!window.currentPdfId) {
+        showToast('Please select a PDF first.', 'warning');
+        return;
+    }
+
+    showLoading('Finding relevant video recommendations...');
+    try {
+        const response = await fetch('/api/recommend-videos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdfId: window.currentPdfId }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to get recommendations');
+
+        displayVideoRecommendations(data.recommendations);
+        videoModal.classList.add('active');
+        showToast('Video recommendations loaded!', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function displayVideoRecommendations(recommendations) {
+    if (!recommendations || recommendations.length === 0) {
+        videoContent.innerHTML = `
+            <div class="video-empty-state">
+                <i class="fab fa-youtube"></i>
+                <p>No recommendations available at this time.</p>
+            </div>`;
+        return;
+    }
+
+    const videoList = recommendations.map((video, index) => {
+        let url = video.url;
+        
+        // SECURITY FIX: Validate YouTube URL
+        if (!url || !url.startsWith("https://www.youtube.com/")) {
+            console.warn("Invalid YouTube URL blocked:", url);
+            url = "#";
+        }
+        
+        return `
+            <li class="video-item">
+                <div class="video-number">${index + 1}</div>
+                <div class="video-info">
+                    <h4 class="video-title">${escapeHtml(video.title)}</h4>
+                    <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-link">
+                        <i class="fab fa-youtube"></i>
+                        Watch on YouTube
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </div>
+            </li>
+        `;
+    }).join('');
+
+    videoContent.innerHTML = `
+        <div class="video-recommendations-intro">
+            <p>Here are some relevant YouTube videos to help you learn more about the topics in your PDF:</p>
+        </div>
+        <ul class="video-list">${videoList}</ul>
+        <div class="video-recommendations-footer">
+            <div class="video-hint">
+                <i class="fas fa-info-circle"></i>
+                <span>These recommendations are generated based on the content of your selected PDF. Click any link to search YouTube for relevant educational videos.</span>
+            </div>
+        </div>
+    `;
+}
+
+// Utility Functions
+function showLoading(message) {
+    loadingText.textContent = message || 'Loading...';
+    loadingOverlay.classList.add('active');
+}
+
+function hideLoading() {
+    loadingOverlay.classList.remove('active');
+}
+
+function showToast(message, type = 'info') {
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+    toast.style.display = 'block';
+    setTimeout(() => {
+        toast.style.opacity = 1;
+    }, 10);
+    setTimeout(() => {
+        toast.style.opacity = 0;
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 300);
+    }, 3000);
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
