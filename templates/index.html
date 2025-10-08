@@ -88,6 +88,10 @@
                     <i class="fas fa-redo"></i>
                     New Quiz
                 </button>
+                <button id="getVideoRecsBtn" class="btn btn-large">
+                    <i class="fab fa-youtube"></i>
+                    Get Video Recommendations
+                </button>
             </div>
 
             <!-- Stats Card -->
@@ -279,6 +283,27 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="reviewAnswers">Review Answers</button>
                 <button class="btn btn-primary" id="tryAgain">Try Another Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Recommendations Modal -->
+    <div class="video-modal" id="videoModal">
+        <div class="video-modal-content">
+            <div class="video-modal-header">
+                <h2>
+                    <i class="fab fa-youtube"></i>
+                    Video Recommendations
+                </h2>
+                <button class="video-modal-close" id="closeVideoModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="video-modal-body" id="videoContent">
+                <!-- Video recommendations will be inserted here -->
+            </div>
+            <div class="video-modal-footer">
+                <button class="btn btn-secondary" id="closeVideoModalBtn">Close</button>
             </div>
         </div>
     </div>
