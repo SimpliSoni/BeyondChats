@@ -1,580 +1,1390 @@
-// DOM Elements
-const fileInput = document.getElementById('fileInput');
-const pdfSelect = document.getElementById('pdfSelect');
-const generateQuizBtn = document.getElementById('generateQuizBtn');
-const newQuizBtn = document.getElementById('newQuizBtn');
-const refreshPDFsBtn = document.getElementById('refreshPDFs');
-const quizContainer = document.getElementById('quizContainer');
-const pdfViewer = document.getElementById('pdfViewer');
-const pdfCanvas = document.getElementById('pdfCanvas');
-const loadingOverlay = document.getElementById('loadingOverlay');
-const loadingText = document.getElementById('loadingText');
-const toast = document.getElementById('toast');
-const themeToggle = document.getElementById('themeToggle');
-const uploadProgress = document.getElementById('uploadProgress');
-const progressFill = document.querySelector('.progress-fill');
-const navBtns = document.querySelectorAll('.nav-btn[data-view]');
-const contentViews = document.querySelectorAll('.content-view');
-const scoreModal = document.getElementById('scoreModal');
-const closeModal = document.getElementById('closeModal');
-const reviewAnswers = document.getElementById('reviewAnswers');
-const tryAgain = document.getElementById('tryAgain');
-const scoreContent = document.getElementById('scoreContent');
-const attemptsList = document.getElementById('attemptsList');
-const progressAttempts = document.getElementById('progressAttempts');
-const progressAverage = document.getElementById('progressAverage');
-const avgScore = document.getElementById('avgScore');
-
-
-// NEW: Video recommendation elements
-const getVideoRecsBtn = document.getElementById('getVideoRecsBtn');
-const videoModal = document.getElementById('videoModal');
-const closeVideoModal = document.getElementById('closeVideoModal');
-const closeVideoModalBtn = document.getElementById('closeVideoModalBtn');
-const videoContent = document.getElementById('videoContent');
-
-// State
-let currentQuiz = null;
-let currentPdfFile = null;
-
-// Make currentPdfId globally accessible via window object
-window.currentPdfId = null;
-
-// Initialize
-document.addEventListener('DOMContentLoaded', initializeApp);
-
-function initializeApp() {
-    loadPDFs();
-    setupEventListeners();
-    checkTheme();
+/* CSS Variables for Theme */
+:root {
+    --primary-color: #6366f1;
+    --primary-hover: #4f46e5;
+    --primary-light: #e0e7ff;
+    --secondary-color: #8b5cf6;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+    --info-color: #3b82f6;
+    --youtube-red: #ff0000;
+    --youtube-hover: #cc0000;
+    
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
+    --bg-card: #ffffff;
+    
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-tertiary: #9ca3af;
+    
+    --border-color: #e5e7eb;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-// Event Listeners
-function setupEventListeners() {
-    fileInput.addEventListener('change', handleFileUpload);
-    pdfSelect.addEventListener('change', handlePdfSelect);
-    generateQuizBtn.addEventListener('click', generateQuiz);
-    newQuizBtn.addEventListener('click', generateQuiz);
-    refreshPDFsBtn.addEventListener('click', () => {
-        showToast('Refreshing PDF list...', 'info');
-        loadPDFs();
-    });
-    themeToggle.addEventListener('click', toggleTheme);
-    navBtns.forEach(btn => btn.addEventListener('click', (e) => switchView(e.currentTarget.dataset.view)));
-    closeModal.addEventListener('click', () => scoreModal.classList.remove('active'));
-    reviewAnswers.addEventListener('click', () => {
-        scoreModal.classList.remove('active');
-        quizContainer.scrollIntoView({ behavior: 'smooth' });
-    });
-    tryAgain.addEventListener('click', () => {
-        scoreModal.classList.remove('active');
-        newQuizBtn.click();
-    });
-
-    // NEW: Video recommendations event listeners
-    getVideoRecsBtn.addEventListener('click', getYouTubeRecommendations);
-    closeVideoModal.addEventListener('click', () => videoModal.classList.remove('active'));
-    closeVideoModalBtn.addEventListener('click', () => videoModal.classList.remove('active'));
-
-    const uploadArea = document.querySelector('.upload-area');
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      uploadArea.addEventListener(eventName, e => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-    });
-    ['dragenter', 'dragover'].forEach(eventName => {
-      uploadArea.addEventListener(eventName, () => uploadArea.classList.add('hover'));
-    });
-    ['dragleave', 'drop'].forEach(eventName => {
-      uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('hover'));
-    });
-    uploadArea.addEventListener('drop', e => {
-      fileInput.files = e.dataTransfer.files;
-      handleFileUpload({ target: fileInput });
-    });
+/* Dark Theme */
+[data-theme="dark"] {
+    --primary-color: #818cf8;
+    --primary-hover: #6366f1;
+    --primary-light: #312e81;
+    --secondary-color: #a78bfa;
+    --youtube-red: #ff4444;
+    --youtube-hover: #ff0000;
+    
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --bg-card: #1e293b;
+    
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
+    
+    --border-color: #334155;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
-// Theme Management
-function checkTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.body.setAttribute('data-theme', savedTheme);
-    updateThemeIcon(savedTheme);
+/* Global Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-function toggleTheme() {
-    const newTheme = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-    document.body.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme);
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    transition: var(--transition);
 }
 
-function updateThemeIcon(theme) {
-    themeToggle.querySelector('i').className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+/* Header */
+.app-header {
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
 }
 
-// View Management
-function switchView(viewName) {
-    navBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewName));
-    contentViews.forEach(view => view.classList.toggle('active', view.id === `${viewName}View`));
-    if (viewName === 'progress') loadProgress();
+.header-content {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
 }
 
-// PDF Management
-async function loadPDFs() {
-    try {
-        const response = await fetch('/api/pdfs');
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch');
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
 
-        pdfSelect.innerHTML = '<option value="">Choose a PDF...</option>';
-        data.pdfs.forEach(pdf => {
-            const option = document.createElement('option');
-            option.value = pdf._id;
-            option.textContent = pdf.filename;
-            pdfSelect.appendChild(option);
-        });
-        document.getElementById('totalQuizzes').textContent = data.pdfs.length;
-    } catch (error) {
-        showToast(`Error loading PDFs: ${error.message}`, 'error');
+.logo i {
+    font-size: 1.5rem;
+}
+
+.header-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.nav-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.nav-btn.active {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.theme-toggle {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+}
+
+/* Main Layout */
+.app-container {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    min-height: calc(100vh - 73px);
+}
+
+/* Sidebar */
+.sidebar {
+    width: 320px;
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    height: fit-content;
+    position: sticky;
+    top: 97px;
+    box-shadow: var(--shadow-md);
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.sidebar-header h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Upload Section */
+.upload-section {
+    margin-bottom: 1.5rem;
+}
+
+.upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color);
+    background: var(--primary-light);
+}
+
+.upload-area i {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+}
+
+.upload-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.upload-hint {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.upload-progress {
+    display: none;
+    margin-top: 1rem;
+}
+
+.upload-progress.active {
+    display: block;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary-color);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    display: block;
+}
+
+/* PDF Selection */
+.pdf-section {
+    margin-bottom: 1.5rem;
+}
+
+.section-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.select-wrapper {
+    position: relative;
+}
+
+.modern-select {
+    width: 100%;
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    appearance: none;
+    transition: var(--transition);
+}
+
+.modern-select:hover {
+    border-color: var(--primary-color);
+}
+
+.modern-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.select-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    pointer-events: none;
+}
+
+/* Quiz Controls */
+.quiz-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+    line-height: 1;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-secondary);
+}
+
+.btn-large {
+    padding: 1rem 1.5rem;
+    font-size: 0.9375rem;
+    width: 100%;
+}
+
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-icon:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary-color);
+}
+
+/* Stats Card */
+.stats-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+}
+
+.stats-card h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+}
+
+.stat-label {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+}
+
+.stat-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.content-view {
+    display: none;
+    height: 100%;
+}
+
+.content-view.active {
+    display: flex;
+}
+
+/* Quiz View */
+#quizView {
+    gap: 1px;
+    background: var(--border-color);
+}
+
+.pdf-viewer,
+.quiz-container {
+    flex: 1;
+    background: var(--bg-card);
+    min-height: calc(100vh - 145px);
+}
+
+.pdf-placeholder,
+.quiz-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 2rem;
+    text-align: center;
+}
+
+.pdf-placeholder i,
+.quiz-placeholder i {
+    font-size: 4rem;
+    color: var(--text-tertiary);
+    margin-bottom: 1rem;
+}
+
+.pdf-placeholder h3,
+.quiz-placeholder h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.pdf-placeholder p,
+.quiz-placeholder p {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+#pdfFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: left;
+    margin-top: 1rem;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.feature-item i {
+    font-size: 1rem;
+    color: var(--success-color);
+}
+
+/* Quiz Content */
+.quiz-content {
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.quiz-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.quiz-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.quiz-meta {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.question-section {
+    margin-bottom: 2rem;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: var(--primary-light);
+    border-radius: var(--radius-md);
+}
+
+.question-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    animation: fadeIn 0.4s ease;
+    border-left: 4px solid var(--primary-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.question-card:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
+}
+
+.question-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.question-text {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.option-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.option-item:hover {
+    border-color: var(--primary-color);
+    background: var(--primary-light);
+}
+
+.option-item input[type="radio"] {
+    margin-right: 0.75rem;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.option-item label {
+    flex: 1;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.answer-input {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    resize: vertical;
+    transition: var(--transition);
+}
+
+.answer-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.feedback-card {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-left: 4px solid var(--info-color);
+    border-radius: var(--radius-md);
+}
+
+.feedback-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.feedback-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.875rem;
+}
+
+.feedback-icon.correct {
+    background: var(--success-color);
+    color: white;
+}
+
+.feedback-icon.incorrect {
+    background: var(--error-color);
+    color: white;
+}
+
+.feedback-header h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.feedback-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.quiz-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.submit-quiz-btn {
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+}
+
+/* Progress View */
+#progressView {
+    flex-direction: column;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.progress-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.progress-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.progress-header p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.progress-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.progress-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.progress-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.progress-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 1rem;
+    background: var(--primary-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-color);
+    font-size: 1.25rem;
+}
+
+.progress-card h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.progress-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.recent-attempts {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+}
+
+.recent-attempts h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.attempts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.attempt-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+}
+
+.attempt-details {
+    flex: 1;
+}
+
+.attempt-pdf {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.attempt-date {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.attempt-score {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+/* ============================================
+   VIDEO RECOMMENDATIONS MODAL
+   ============================================ */
+
+#getVideoRecsBtn {
+    background: var(--youtube-red);
+    color: white;
+    margin-top: 0.75rem;
+}
+
+#getVideoRecsBtn:hover {
+    background: var(--youtube-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3);
+}
+
+#getVideoRecsBtn i {
+    font-size: 1rem;
+}
+
+.video-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.video-modal.active {
+    display: flex;
+}
+
+.video-modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 700px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl);
+    animation: slideUp 0.3s ease;
+}
+
+.video-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.video-modal-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.video-modal-header h2 i {
+    color: var(--youtube-red);
+    font-size: 1.5rem;
+}
+
+.video-modal-close {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+}
+
+.video-modal-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.video-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+.video-recommendations-intro {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--primary-light);
+    border-radius: var(--radius-md);
+}
+
+.video-recommendations-intro p {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.video-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.video-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    transition: var(--transition);
+    border: 2px solid transparent;
+}
+
+.video-item:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--youtube-red);
+    transform: translateX(4px);
+}
+
+.video-number {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--youtube-red);
+    color: white;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.875rem;
+}
+
+.video-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.video-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.video-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--youtube-red);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: var(--transition);
+    width: fit-content;
+}
+
+.video-link:hover {
+    color: var(--youtube-hover);
+    gap: 0.75rem;
+}
+
+.video-link i.fab {
+    font-size: 1.125rem;
+}
+
+.video-link i.fa-external-link-alt {
+    font-size: 0.75rem;
+}
+
+.video-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.video-empty-state i {
+    font-size: 4rem;
+    color: var(--text-tertiary);
+    margin-bottom: 1rem;
+}
+
+.video-empty-state p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.video-recommendations-footer {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.video-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.video-hint i {
+    color: var(--info-color);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.video-modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+/* ============================================
+   SCORE MODAL
+   ============================================ */
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl);
+    animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.modal-close:hover {
+    background: var(--bg-tertiary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.score-display {
+    text-align: center;
+    padding: 2rem;
+}
+
+.score-circle {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 1.5rem;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+}
+
+.score-percentage {
+    font-size: 2rem;
+    font-weight: 700;
+    color: white;
+}
+
+.score-message {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.score-details {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-content {
+    text-align: center;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 1.5rem;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-content p {
+    font-size: 0.9375rem;
+    color: white;
+    font-weight: 500;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--bg-card);
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    z-index: 3000;
+    transform: translateX(calc(100% + 2rem));
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast-icon {
+    font-size: 1.25rem;
+}
+
+.toast.success { --toast-color: var(--success-color); }
+.toast.error { --toast-color: var(--error-color); }
+.toast.warning { --toast-color: var(--warning-color); }
+.toast.info { --toast-color: var(--info-color); }
+
+.toast .toast-icon {
+    color: var(--toast-color);
+}
+
+.toast-message {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
-async function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 
-    currentPdfFile = file;
-    const formData = new FormData();
-    formData.append('file', file);
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .app-container {
+        flex-direction: column;
+    }
 
-    uploadProgress.classList.add('active');
-    try {
-        const response = await fetch('/api/upload', { method: 'POST', body: formData });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Upload failed');
+    .sidebar {
+        width: 100%;
+        position: static;
+    }
 
-        showToast('PDF uploaded successfully!', 'success');
-        await loadPDFs();
-        pdfSelect.value = data.pdf_id;
-        
-        // Render the PDF immediately since we still have it in memory
-        renderPdf(file);
-        
-        // Update state
-        window.currentPdfId = data.pdf_id;
-        const chatPdfContext = document.getElementById('chatPdfContext');
-        if (chatPdfContext) {
-            chatPdfContext.textContent = `Discussing: ${file.name}`;
-        }
-        generateQuizBtn.disabled = false;
-    } catch (error) {
-        showToast(error.message, 'error');
-    } finally {
-        uploadProgress.classList.remove('active');
-        fileInput.value = '';
+    #quizView {
+        flex-direction: column;
     }
 }
 
-async function handlePdfSelect() {
-    const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
-    window.currentPdfId = selectedOption.value;
-
-    if (window.currentPdfId) {
-        // Update chat context indicator
-        const chatPdfContext = document.getElementById('chatPdfContext');
-        if (chatPdfContext) {
-            chatPdfContext.textContent = `Discussing: ${selectedOption.textContent}`;
-        }
-        
-        // Check if we have the file in memory
-        if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
-            renderPdf(currentPdfFile);
-        } else {
-            // Can't re-render PDFs in serverless environment
-            currentPdfFile = null;
-            pdfCanvas.style.display = 'none';
-            const placeholder = pdfViewer.querySelector('.pdf-placeholder');
-            placeholder.style.display = 'flex';
-            placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
-            placeholder.querySelector('p').textContent = "The PDF was processed successfully, but preview is only available for newly uploaded files in this deployment.";
-        }
-        
-        generateQuizBtn.disabled = false;
-    } else {
-        currentPdfFile = null;
-        window.currentPdfId = null;
-        pdfCanvas.style.display = 'none';
-        const placeholder = pdfViewer.querySelector('.pdf-placeholder');
-        placeholder.style.display = 'flex';
-        placeholder.querySelector('h3').textContent = "No PDF Selected";
-        placeholder.querySelector('p').textContent = "Upload or select a PDF to view it here";
-        generateQuizBtn.disabled = true;
-        
-        // Clear chat context
-        const chatPdfContext = document.getElementById('chatPdfContext');
-        if (chatPdfContext) {
-            chatPdfContext.textContent = "No PDF Selected";
-        }
+@media (max-width: 768px) {
+    .header-content {
+        padding: 1rem;
     }
-}
 
-async function renderPdf(file) {
-    const fileReader = new FileReader();
-    fileReader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 1.5 });
+    .logo span {
+        display: none;
+    }
 
-        const canvas = pdfCanvas;
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+    .nav-btn span {
+        display: none;
+    }
 
-        page.render({ canvasContext: context, viewport: viewport });
-        
-        canvas.style.display = 'block';
-        pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
-    };
-    fileReader.readAsArrayBuffer(file);
-}
+    .nav-btn {
+        padding: 0.5rem;
+        width: 40px;
+        height: 40px;
+        justify-content: center;
+    }
 
-// Quiz Lifecycle
-async function generateQuiz() {
-    if (!window.currentPdfId) {
-        showToast('Please select a PDF first.', 'warning');
-        return;
+    .app-container {
+        padding: 1rem;
+    }
+
+    .quiz-content {
+        padding: 1.5rem;
+    }
+
+    .progress-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-content,
+    .video-modal-content {
+        max-height: 90vh;
+    }
+
+    .toast {
+        bottom: 1rem;
+        right: 1rem;
+        left: 1rem;
+        transform: translateY(calc(100% + 1rem));
     }
     
-    // Add skeleton loading to quiz container
-    quizContainer.innerHTML = \`
-        <div class="quiz-content quiz-loading" style="padding: 3rem; text-align: center;">
-            <i class="fas fa-brain" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
-            <p style="color: var(--text-secondary);">Analyzing your PDF and crafting questions...</p>
-        </div>
-    \`;
-    
-    showLoading('Crafting your custom quiz...');
-    try {
-        const response = await fetch('/api/generate-quiz', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: window.currentPdfId }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Quiz generation failed');
-
-        currentQuiz = data;
-        renderQuiz(data);
-        showToast('Your quiz is ready!', 'success');
-        generateQuizBtn.style.display = 'none';
-        newQuizBtn.style.display = 'flex';
-    } catch (error) {
-        showToast(error.message, 'error');
-        // Restore placeholder on error
-        quizContainer.innerHTML = \`
-            <div class="quiz-placeholder">
-                <i class="fas fa-exclamation-circle" style="color: var(--error-color);"></i>
-                <h3>Error Generating Quiz</h3>
-                <p>${escapeHtml(error.message)}</p>
-            </div>
-        \`;
-    } finally {
-        hideLoading();
+    .toast.show {
+        transform: translateY(0);
     }
 }
 
-function renderQuiz(quizData) {
-    let questionCounter = 0;
-    const renderQuestion = (type, question, options = []) => {
-        questionCounter++;
-        let optionsHtml = '';
-        if (type === 'mcq') {
-            optionsHtml = options.map((opt, i) => \`
-                <div class="option-item">
-                    <input type="radio" id="q${questionCounter}_opt${i}" name="q${questionCounter}" value="${opt}">
-                    <label for="q${questionCounter}_opt${i}">${opt}</label>
-                </div>
-            \`).join('');
-        } else {
-            optionsHtml = \`<textarea class="answer-input" name="q${questionCounter}" placeholder="Your answer here..."></textarea>\`;
-        }
-        return \`
-            <div class="question-card" data-question-type="${type}">
-                <div class="question-number">${questionCounter}</div>
-                <p class="question-text">${question}</p>
-                <div class="options-list">${optionsHtml}</div>
-                <div class="feedback-card" style="display: none;"></div>
-            </div>\`;
-    };
-
-    const sections = [
-        { title: 'Multiple Choice', type: 'mcq', questions: quizData.mcqs || [] },
-        { title: 'Short Answer', type: 'saq', questions: quizData.saqs || [] },
-        { title: 'Long Answer', type: 'laq', questions: quizData.laqs || [] },
-    ];
-
-    quizContainer.innerHTML = \`
-        <form id="quizForm" class="quiz-content">
-            ${sections.map(section => section.questions.length ? \`
-                <div class="question-section">
-                    <h3 class="section-title"><i class="fas fa-list-ul"></i>${section.title}</h3>
-                    ${section.questions.map(q => renderQuestion(section.type, q.question, q.options)).join('')}
-                </div>
-            \` : '').join('')}
-            <div class="quiz-actions">
-                <button type="submit" class="btn btn-primary submit-quiz-btn">Submit Answers</button>
-            </div>
-        </form>\`;
-    document.getElementById('quizForm').addEventListener('submit', handleQuizSubmit);
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
 
-async function handleQuizSubmit(event) {
-    event.preventDefault();
-    const submitButton = event.target.querySelector('.submit-quiz-btn');
-    submitButton.disabled = true;
-    
-    const formData = new FormData(event.target);
-    const userAnswers = {};
-    formData.forEach((value, key) => {
-        userAnswers[key] = value;
-    });
-
-    showLoading('Evaluating your answers...');
-    try {
-        const response = await fetch('/api/score-quiz', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                pdfId: window.currentPdfId,
-                quizQuestions: currentQuiz,
-                userAnswers: userAnswers
-            }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Scoring failed');
-
-        displayScore(result);
-        displayFeedback(result.questionFeedback);
-    } catch (error) {
-        showToast(\`Error: ${error.message}\`, 'error');
-        submitButton.disabled = false;
-    } finally {
-        hideLoading();
-    }
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
 }
 
-function displayScore(result) {
-    scoreContent.innerHTML = \`
-        <div class="score-display">
-            <div class="score-circle">
-                <span class="score-percentage">${result.score}</span>
-            </div>
-            <h3 class="score-message">Great Effort!</h3>
-            <p class="score-details">${result.overallFeedback}</p>
-        </div>\`;
-    scoreModal.classList.add('active');
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
 }
 
-function displayFeedback(feedbackData) {
-    if (!feedbackData || !Array.isArray(feedbackData)) {
-        console.warn('No feedback data provided');
-        return;
-    }
-
-    const questionCards = document.querySelectorAll('.question-card');
-    feedbackData.forEach((fb, index) => {
-        if (questionCards[index]) {
-            const feedbackCard = questionCards[index].querySelector('.feedback-card');
-            const isCorrect = fb.feedback.toLowerCase().includes('correct') || fb.feedback.toLowerCase().includes('good');
-
-            feedbackCard.innerHTML = \`
-                <div class="feedback-header">
-                    <span class="feedback-icon ${isCorrect ? 'correct' : 'incorrect'}">
-                        <i class="fas ${isCorrect ? 'fa-check' : 'fa-times'}"></i>
-                    </span>
-                    <h4>Feedback</h4>
-                </div>
-                <p class="feedback-text">${escapeHtml(fb.feedback)}</p>
-            \`;
-            feedbackCard.style.display = 'block';
-        }
-    });
-    
-    // Disable the form after feedback is displayed
-    const quizForm = document.getElementById('quizForm');
-    if (quizForm) {
-        quizForm.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
 }
 
-// Video Recommendations
-async function getYouTubeRecommendations() {
-    if (!window.currentPdfId) {
-        showToast('Please select a PDF first.', 'warning');
-        return;
-    }
-
-    showLoading('Finding relevant video recommendations...');
-    try {
-        const response = await fetch('/api/recommend-videos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: window.currentPdfId }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to get recommendations');
-
-        displayVideoRecommendations(data.recommendations);
-        videoModal.classList.add('active');
-        showToast('Video recommendations loaded!', 'success');
-    } catch (error) {
-        showToast(error.message, 'error');
-    } finally {
-        hideLoading();
-    }
+/* Utility classes */
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
-function displayVideoRecommendations(recommendations) {
-    if (!recommendations || recommendations.length === 0) {
-        videoContent.innerHTML = \`
-            <div class="video-empty-state">
-                <i class="fab fa-youtube"></i>
-                <p>No recommendations available at this time.</p>
-            </div>\`;
-        return;
-    }
-
-    const videoList = recommendations.map((video, index) => {
-        let url = video.url;
-        
-        // SECURITY FIX: Validate YouTube URL
-        if (!url || !url.startsWith("https://www.youtube.com/")) {
-            console.warn("Invalid YouTube URL blocked:", url);
-            url = "#";
-        }
-        
-        return \`
-            <li class="video-item">
-                <div class="video-number">${index + 1}</div>
-                <div class="video-info">
-                    <h4 class="video-title">${escapeHtml(video.title)}</h4>
-                    <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-link">
-                        <i class="fab fa-youtube"></i>
-                        Watch on YouTube
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                </div>
-            </li>
-        \`;
-    }).join('');
-
-    videoContent.innerHTML = \`
-        <div class="video-recommendations-intro">
-            <p>Here are some relevant YouTube videos to help you learn more about the topics in your PDF:</p>
-        </div>
-        <ul class="video-list">${videoList}</ul>
-        <div class="video-recommendations-footer">
-            <div class="video-hint">
-                <i class="fas fa-info-circle"></i>
-                <span>These recommendations are generated based on the content of your selected PDF. Click any link to search YouTube for relevant educational videos.</span>
-            </div>
-        </div>
-    \`;
+.error-state {
+    padding: 2rem;
+    text-align: center;
+    color: var(--error-color);
 }
 
-
-// ============== FIX STARTS HERE ==============
-// This function was missing, causing the progress tab to not work.
-async function loadProgress() {
-    try {
-        showLoading('Loading your progress...');
-        const response = await fetch('/api/progress');
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch progress');
-
-        const attempts = data.attempts || [];
-        const totalAttempts = attempts.length;
-        const averageScoreValue = totalAttempts > 0 ?
-            attempts.reduce((sum, a) => sum + parseFloat((a.score || '0%').replace('%', '')), 0) / totalAttempts
-            : 0;
-
-        // Update progress view
-        progressAttempts.textContent = totalAttempts;
-        progressAverage.textContent = \`${averageScoreValue.toFixed(0)}%\`;
-
-        // Update sidebar stats
-        avgScore.textContent = \`${averageScoreValue.toFixed(0)}%\`;
-
-
-        const attemptsListEl = document.getElementById('attemptsList');
-        if (attempts.length === 0) {
-            attemptsListEl.innerHTML = '<div class="attempt-item"><p>You haven\\'t attempted any quizzes yet.</p></div>';
-            return;
-        }
-
-        attemptsListEl.innerHTML = attempts.map(attempt => {
-            // Check for a valid timestamp
-            const date = attempt.timestamp ? new Date(attempt.timestamp).toLocaleString() : 'N/A';
-            const score = attempt.score || 'N/A';
-            
-            return \`
-                <div class="attempt-item">
-                    <div class="attempt-details">
-                        <p class="attempt-pdf">PDF: ${escapeHtml(attempt.pdf_filename || 'Unknown')}</p>
-                        <p class="attempt-date">${date}</p>
-                    </div>
-                    <div class="attempt-score">${score}</div>
-                </div>
-            \`;
-        }).join('');
-
-    } catch (error) {
-        showToast(\`Error loading progress: ${error.message}\`, 'error');
-        document.getElementById('attemptsList').innerHTML = \`<p class="error-state">${escapeHtml(error.message)}</p>\`;
-    } finally {
-        hideLoading();
-    }
-}
-// ============== FIX ENDS HERE ==============
-
-
-
-// Utility Functions
-function showLoading(message) {
-    loadingText.textContent = message || 'Loading...';
-    loadingOverlay.classList.add('active');
+.error-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
 }
 
-function hideLoading() {
-    loadingOverlay.classList.remove('active');
+.quiz-loading {
+    animation: pulse 1.5s ease-in-out infinite;
 }
 
-function showToast(message, type = 'info') {
-    toast.textContent = message;
-    toast.className = \`toast \${type}\`;
-    toast.style.display = 'block';
-    setTimeout(() => {
-        toast.style.opacity = 1;
-    }, 10);
-    setTimeout(() => {
-        toast.style.opacity = 0;
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 300);
-    }, 3000);
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
-function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') {
-        return '';
-    }
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+.pdf-tips {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--primary-light);
+    border-radius: var(--radius-md);
+}
+
+.pdf-tips small {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
 }
