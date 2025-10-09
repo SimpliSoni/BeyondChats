@@ -346,6 +346,50 @@ async function handleQuizSubmit(event) {
     }
 }
 
+function displayScore(result) {
+    scoreContent.innerHTML = `
+        <div class="score-display">
+            <div class="score-circle">
+                <span class="score-percentage">${result.score}</span>
+            </div>
+            <h3 class="score-message">Great Effort!</h3>
+            <p class="score-details">${result.overallFeedback}</p>
+        </div>`;
+    scoreModal.classList.add('active');
+}
+
+function displayFeedback(feedbackData) {
+    if (!feedbackData || !Array.isArray(feedbackData)) {
+        console.warn('No feedback data provided');
+        return;
+    }
+
+    const questionCards = document.querySelectorAll('.question-card');
+    feedbackData.forEach((fb, index) => {
+        if (questionCards[index]) {
+            const feedbackCard = questionCards[index].querySelector('.feedback-card');
+            const isCorrect = fb.feedback.toLowerCase().includes('correct') || fb.feedback.toLowerCase().includes('good');
+
+            feedbackCard.innerHTML = `
+                <div class="feedback-header">
+                    <span class="feedback-icon ${isCorrect ? 'correct' : 'incorrect'}">
+                        <i class="fas ${isCorrect ? 'fa-check' : 'fa-times'}"></i>
+                    </span>
+                    <h4>Feedback</h4>
+                </div>
+                <p class="feedback-text">${escapeHtml(fb.feedback)}</p>
+            `;
+            feedbackCard.style.display = 'block';
+        }
+    });
+    
+    // Disable the form after feedback is displayed
+    const quizForm = document.getElementById('quizForm');
+    if (quizForm) {
+        quizForm.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+    }
+}
+
 // Video Recommendations
 async function getYouTubeRecommendations() {
     if (!window.currentPdfId) {
