@@ -2,6 +2,8 @@ import os
 import uuid
 import json
 import time
+import re
+from collections import Counter
 import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
@@ -10,17 +12,11 @@ import PyPDF2
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 import datetime
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 
 # --- Initialization ---
 load_dotenv()
 
 app = Flask(__name__)
-
-# --- Configuration ---
-# Note: No UPLOAD_FOLDER needed for serverless deployment
 
 # --- Gemini AI and MongoDB Setup ---
 try:
@@ -86,10 +82,11 @@ def generate_with_retry(model, prompt, retries=3, delay=2):
                 print(f"API call failed after {retries} attempts: {e}")
                 raise e
 
-# --- RAG Helper Function ---
-def retrieve_relevant_chunks(text, query, chunk_size=500, top_k=3):
+# --- Lightweight RAG Implementation ---
+def simple_keyword_search(text, query, chunk_size=500, top_k=3):
     """
-    Simple RAG using TF-IDF for retrieving relevant text chunks.
+    Lightweight keyword-based retrieval without heavy ML dependencies.
+    Uses word frequency and overlap scoring.
     
     Args:
         text: Full document text
@@ -100,29 +97,49 @@ def retrieve_relevant_chunks(text, query, chunk_size=500, top_k=3):
     Returns:
         Concatenated relevant text chunks
     """
+    if not text or not query:
+        return text[:2000] if text else ""
+    
+    # Normalize and tokenize
+    def tokenize(s):
+        return re.findall(r'\b\w+\b', s.lower())
+    
+    query_words = set(tokenize(query))
+    
     # Split into chunks
     words = text.split()
-    chunks = [' '.join(words[i:i+chunk_size]) 
-              for i in range(0, len(words), chunk_size)]
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunk_text = ' '.join(words[i:i+chunk_size])
+        chunks.append(chunk_text)
     
     if not chunks:
-        return text[:2000]  # Fallback to first 2000 chars
+        return text[:2000]
     
-    # Vectorize using TF-IDF
-    vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
-    try:
-        chunk_vectors = vectorizer.fit_transform(chunks)
-        query_vector = vectorizer.transform([query])
-        
-        # Calculate cosine similarity
-        similarities = cosine_similarity(query_vector, chunk_vectors)[0]
-        top_indices = np.argsort(similarities)[-top_k:][::-1]
-        
-        # Return top relevant chunks
-        return '\n\n'.join([chunks[i] for i in top_indices])
-    except Exception as e:
-        print(f"RAG retrieval error: {e}")
+    # Score chunks by keyword overlap
+    chunk_scores = []
+    for idx, chunk in enumerate(chunks):
+        chunk_words = set(tokenize(chunk))
+        # Calculate overlap score
+        overlap = len(query_words & chunk_words)
+        # Boost score if query words appear multiple times
+        word_counts = Counter(tokenize(chunk))
+        frequency_boost = sum(word_counts[w] for w in query_words if w in word_counts)
+        score = overlap * 10 + frequency_boost
+        chunk_scores.append((score, idx))
+    
+    # Get top k chunks
+    chunk_scores.sort(reverse=True)
+    top_indices = [idx for _, idx in chunk_scores[:top_k]]
+    top_indices.sort()  # Maintain document order
+    
+    relevant_text = '\n\n'.join([chunks[i] for i in top_indices])
+    
+    # Fallback if no good matches
+    if not relevant_text.strip():
         return chunks[0] if chunks else text[:2000]
+    
+    return relevant_text
 
 # --- API Endpoints ---
 
@@ -213,9 +230,9 @@ def handle_chat():
         if not pdf_doc or not pdf_doc.get('extracted_text'):
             return jsonify({"error": "PDF not found or has no text content."}), 404
         
-        # Use RAG to retrieve relevant chunks
-        full_text = pdf_doc.get('extracted_text')
-        relevant_text = retrieve_relevant_chunks(full_text, user_message, chunk_size=500, top_k=3)
+        # Use lightweight keyword search for RAG
+        full_text = pdf_doc.get('extracted_text', '')
+        relevant_text = simple_keyword_search(full_text, user_message, chunk_size=500, top_k=3)
         
         prompt = f"""
         You are a helpful AI teacher. A student has asked a question about a document they've uploaded.
@@ -239,7 +256,6 @@ def handle_chat():
         print(f"Chat API Error: {e}")
         return jsonify({"error": f"An error occurred while getting the AI response: {e}"}), 500
 
-# NEW: YouTube Video Recommendations Endpoint
 @app.route('/api/recommend-videos', methods=['POST'])
 def recommend_videos():
     """
