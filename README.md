@@ -1,4 +1,4 @@
-# QuizGenius - AI-Powered Study Assistant 🎓
+# BeyondQuiz 🎓
 
 A fully functional, responsive web application designed to help school students revise from their coursebooks by generating AI-powered quizzes, providing an interactive chat interface with a virtual teacher, and recommending educational YouTube videos.
 
