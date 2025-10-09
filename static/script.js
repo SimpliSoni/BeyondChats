@@ -38,6 +38,9 @@ let currentPdfFile = null;
 // Make currentPdfId globally accessible via window object
 window.currentPdfId = null;
 
+// FIXED: Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
 // Initialize
 document.addEventListener('DOMContentLoaded', initializeApp);
 
@@ -115,7 +118,11 @@ function updateThemeIcon(theme) {
 function switchView(viewName) {
     navBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewName));
     contentViews.forEach(view => view.classList.toggle('active', view.id === `${viewName}View`));
-    if (viewName === 'progress') loadProgress();
+    
+    // FIXED: Load progress data when switching to progress tab
+    if (viewName === 'progress') {
+        loadProgress();
+    }
 }
 
 // PDF Management
@@ -142,6 +149,14 @@ async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    // FIXED: Validate file size (16MB limit)
+    const maxSize = 16 * 1024 * 1024; // 16MB in bytes
+    if (file.size > maxSize) {
+        showToast('File too large. Maximum size is 16MB.', 'error');
+        fileInput.value = '';
+        return;
+    }
+
     currentPdfFile = file;
     const formData = new FormData();
     formData.append('file', file);
@@ -166,6 +181,9 @@ async function handleFileUpload(event) {
             chatPdfContext.textContent = `Discussing: ${file.name}`;
         }
         generateQuizBtn.disabled = false;
+        
+        // FIXED: Enable video recommendations button
+        getVideoRecsBtn.disabled = false;
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
@@ -199,6 +217,7 @@ async function handlePdfSelect() {
         }
         
         generateQuizBtn.disabled = false;
+        getVideoRecsBtn.disabled = false;
     } else {
         currentPdfFile = null;
         window.currentPdfId = null;
@@ -208,6 +227,7 @@ async function handlePdfSelect() {
         placeholder.querySelector('h3').textContent = "No PDF Selected";
         placeholder.querySelector('p').textContent = "Upload or select a PDF to view it here";
         generateQuizBtn.disabled = true;
+        getVideoRecsBtn.disabled = true;
         
         // Clear chat context
         const chatPdfContext = document.getElementById('chatPdfContext');
@@ -218,29 +238,42 @@ async function handlePdfSelect() {
 }
 
 async function renderPdf(file) {
-    const fileReader = new FileReader();
-    fileReader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 1.5 });
+    try {
+        const fileReader = new FileReader();
+        fileReader.onload = async function() {
+            try {
+                const typedarray = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                const page = await pdf.getPage(1);
+                const viewport = page.getViewport({ scale: 1.5 });
 
-        const canvas = pdfCanvas;
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+                const canvas = pdfCanvas;
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
 
-        page.render({ canvasContext: context, viewport: viewport });
-        
-        canvas.style.display = 'block';
-        pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
-    };
-    fileReader.readAsArrayBuffer(file);
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                
+                canvas.style.display = 'block';
+                pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
+            } catch (error) {
+                console.error('Error rendering PDF:', error);
+                showToast('Failed to render PDF preview', 'error');
+            }
+        };
+        fileReader.onerror = () => {
+            showToast('Failed to read PDF file', 'error');
+        };
+        fileReader.readAsArrayBuffer(file);
+    } catch (error) {
+        console.error('Error in renderPdf:', error);
+        showToast('Failed to load PDF', 'error');
+    }
 }
 
 // Quiz Lifecycle
 async function generateQuiz() {
-    if (!window.currentPdfId) { // Use window.currentPdfId
+    if (!window.currentPdfId) {
         showToast('Please select a PDF first.', 'warning');
         return;
     }
@@ -249,7 +282,7 @@ async function generateQuiz() {
         const response = await fetch('/api/generate-quiz', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: window.currentPdfId }), // Use window.currentPdfId
+            body: JSON.stringify({ pdfId: window.currentPdfId }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Quiz generation failed');
@@ -274,17 +307,17 @@ function renderQuiz(quizData) {
         if (type === 'mcq') {
             optionsHtml = options.map((opt, i) => `
                 <div class="option-item">
-                    <input type="radio" id="q${questionCounter}_opt${i}" name="q${questionCounter}" value="${opt}">
-                    <label for="q${questionCounter}_opt${i}">${opt}</label>
+                    <input type="radio" id="q${questionCounter}_opt${i}" name="q${questionCounter}" value="${escapeHtml(opt)}" required>
+                    <label for="q${questionCounter}_opt${i}">${escapeHtml(opt)}</label>
                 </div>
             `).join('');
         } else {
-            optionsHtml = `<textarea class="answer-input" name="q${questionCounter}" placeholder="Your answer here..."></textarea>`;
+            optionsHtml = `<textarea class="answer-input" name="q${questionCounter}" placeholder="Your answer here..." required></textarea>`;
         }
         return `
             <div class="question-card" data-question-type="${type}">
                 <div class="question-number">${questionCounter}</div>
-                <p class="question-text">${question}</p>
+                <p class="question-text">${escapeHtml(question)}</p>
                 <div class="options-list">${optionsHtml}</div>
                 <div class="feedback-card" style="display: none;"></div>
             </div>`;
@@ -322,6 +355,17 @@ async function handleQuizSubmit(event) {
         userAnswers[key] = value;
     });
 
+    // FIXED: Validate all questions are answered
+    const totalQuestions = Object.keys(currentQuiz.mcqs || []).length + 
+                          Object.keys(currentQuiz.saqs || []).length + 
+                          Object.keys(currentQuiz.laqs || []).length;
+    
+    if (Object.keys(userAnswers).length < totalQuestions) {
+        showToast('Please answer all questions before submitting.', 'warning');
+        submitButton.disabled = false;
+        return;
+    }
+
     showLoading('Evaluating your answers...');
     try {
         const response = await fetch('/api/score-quiz', {
@@ -338,6 +382,9 @@ async function handleQuizSubmit(event) {
 
         displayScore(result);
         displayFeedback(result.questionFeedback);
+        
+        // FIXED: Update stats after quiz submission
+        updateQuickStats();
     } catch (error) {
         showToast(`Error: ${error.message}`, 'error');
         submitButton.disabled = false;
@@ -350,10 +397,10 @@ function displayScore(result) {
     scoreContent.innerHTML = `
         <div class="score-display">
             <div class="score-circle">
-                <span class="score-percentage">${result.score}</span>
+                <span class="score-percentage">${escapeHtml(result.score)}</span>
             </div>
             <h3 class="score-message">Great Effort!</h3>
-            <p class="score-details">${result.overallFeedback}</p>
+            <p class="score-details">${escapeHtml(result.overallFeedback)}</p>
         </div>`;
     scoreModal.classList.add('active');
 }
@@ -431,10 +478,15 @@ function displayVideoRecommendations(recommendations) {
     const videoList = recommendations.map((video, index) => {
         let url = video.url;
         
-        // SECURITY FIX: Validate YouTube URL
-        if (!url || !url.startsWith("https://www.youtube.com/")) {
+        // ENHANCED SECURITY: Strict YouTube URL validation
+        const isValidYouTubeUrl = url && 
+            (url.startsWith("https://www.youtube.com/results?search_query=") || 
+             url.startsWith("https://www.youtube.com/watch?v=") ||
+             url.startsWith("https://youtu.be/"));
+        
+        if (!isValidYouTubeUrl) {
             console.warn("Invalid YouTube URL blocked:", url);
-            url = "#";
+            url = "https://www.youtube.com/results?search_query=" + encodeURIComponent(video.title || "educational video");
         }
         
         return `
@@ -466,6 +518,110 @@ function displayVideoRecommendations(recommendations) {
     `;
 }
 
+// FIXED: Progress Tab Implementation
+async function loadProgress() {
+    showLoading('Loading your progress...');
+    try {
+        const response = await fetch('/api/progress');
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to load progress');
+
+        displayProgressData(data.attempts);
+        updateQuickStats();
+    } catch (error) {
+        showToast(`Error loading progress: ${error.message}`, 'error');
+        console.error('Progress loading error:', error);
+    } finally {
+        hideLoading();
+    }
+}
+
+function displayProgressData(attempts) {
+    if (!attempts || attempts.length === 0) {
+        attemptsList.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-clipboard-list"></i>
+                <h3>No Quiz Attempts Yet</h3>
+                <p>Complete a quiz to see your progress here!</p>
+            </div>`;
+        
+        progressAttempts.textContent = '0';
+        progressAverage.textContent = '0%';
+        document.getElementById('progressTrend').textContent = '+0%';
+        return;
+    }
+
+    // Calculate statistics
+    const totalAttempts = attempts.length;
+    const scores = attempts.map(a => parseFloat(a.score) || 0);
+    const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : 0;
+    
+    // Calculate trend (compare last 3 vs previous)
+    let trend = 0;
+    if (scores.length >= 4) {
+        const recentAvg = scores.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
+        const previousAvg = scores.slice(3, 6).reduce((a, b) => a + b, 0) / Math.min(3, scores.length - 3);
+        trend = (recentAvg - previousAvg).toFixed(1);
+    }
+
+    // Update stats
+    progressAttempts.textContent = totalAttempts;
+    progressAverage.textContent = `${avgScore}%`;
+    const trendElement = document.getElementById('progressTrend');
+    trendElement.textContent = `${trend >= 0 ? '+' : ''}${trend}%`;
+    trendElement.style.color = trend >= 0 ? 'var(--success-color)' : 'var(--error-color)';
+
+    // Display attempts list
+    attemptsList.innerHTML = attempts.map((attempt, index) => {
+        const date = new Date(attempt.timestamp);
+        const scoreValue = parseFloat(attempt.score) || 0;
+        const scoreClass = scoreValue >= 80 ? 'excellent' : scoreValue >= 60 ? 'good' : 'needs-improvement';
+        
+        return `
+            <div class="attempt-card">
+                <div class="attempt-header">
+                    <div class="attempt-number">#${totalAttempts - index}</div>
+                    <div class="attempt-score ${scoreClass}">
+                        <i class="fas fa-star"></i>
+                        ${escapeHtml(attempt.score)}
+                    </div>
+                </div>
+                <div class="attempt-body">
+                    <div class="attempt-date">
+                        <i class="fas fa-calendar"></i>
+                        ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <span class="attempt-time">${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                    </div>
+                    ${attempt.feedback ? `
+                        <div class="attempt-feedback">
+                            <i class="fas fa-comment-dots"></i>
+                            <p>${escapeHtml(attempt.feedback.substring(0, 100))}${attempt.feedback.length > 100 ? '...' : ''}</p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// FIXED: Update quick stats in sidebar
+async function updateQuickStats() {
+    try {
+        const response = await fetch('/api/progress');
+        const data = await response.json();
+        
+        if (response.ok && data.attempts) {
+            const scores = data.attempts.map(a => parseFloat(a.score) || 0);
+            const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(0) : 0;
+            
+            document.getElementById('avgScore').textContent = `${avgScore}%`;
+        }
+    } catch (error) {
+        console.error('Error updating quick stats:', error);
+    }
+}
+
 // Utility Functions
 function showLoading(message) {
     loadingText.textContent = message || 'Loading...';
@@ -491,11 +647,10 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+// ENHANCED: Proper HTML escaping to prevent XSS
 function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    if (typeof unsafe !== 'string') return '';
+    const div = document.createElement('div');
+    div.textContent = unsafe;
+    return div.innerHTML;
 }
