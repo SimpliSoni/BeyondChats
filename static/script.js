@@ -9,6 +9,11 @@ window.currentPdfId = null;
 // INITIALIZATION
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
+    // Configure PDF.js worker
+    if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+    }
+    
     // Initialize both main app and chat features
     initializeApp();
     initializeChatInterface();
@@ -134,8 +139,18 @@ function updateThemeIcon(theme) {
 function switchView(viewName) {
     navBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewName));
     contentViews.forEach(view => view.classList.toggle('active', view.id === `${viewName}View`));
-    if (viewName === 'progress') loadProgress();
+    
+    // Load progress data when switching to progress view
+    if (viewName === 'progress') {
+        loadProgress();
+    }
+    
+    // Reinitialize chat welcome when switching to chat view
+    if (viewName === 'chat' && !chatState.currentChatId) {
+        showWelcomeScreen();
+    }
 }
+
 
 // --- PDF MANAGEMENT ---
 async function loadPDFs() {
@@ -221,8 +236,18 @@ async function handlePdfSelect() {
 
 async function renderPdf(file) {
     const fileReader = new FileReader();
+    
+    fileReader.onerror = function() {
+        showToast('Failed to read PDF file.', 'error');
+        console.error("FileReader error:", fileReader.error);
+    };
+    
     fileReader.onload = async function() {
         try {
+            if (typeof pdfjsLib === 'undefined') {
+                throw new Error('PDF.js library not loaded');
+            }
+            
             const typedarray = new Uint8Array(this.result);
             const pdf = await pdfjsLib.getDocument(typedarray).promise;
             const page = await pdf.getPage(1);
@@ -239,10 +264,17 @@ async function renderPdf(file) {
         } catch (error) {
             showToast('Failed to render PDF preview.', 'error');
             console.error("PDF rendering error:", error);
+            // Show placeholder with error message
+            const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+            placeholder.style.display = 'flex';
+            placeholder.querySelector('h3').textContent = 'PDF Preview Error';
+            placeholder.querySelector('p').textContent = error.message;
         }
     };
+    
     fileReader.readAsArrayBuffer(file);
 }
+
 
 // --- QUIZ LIFECYCLE ---
 async function generateQuiz() {
@@ -360,7 +392,6 @@ async function handleQuizSubmit(event) {
         displayScore(result);
         displayFeedback(result.questionFeedback);
         
-        // **FIX**: Refresh progress data after a quiz is scored
         await loadProgress();
         
     } catch (error) {
@@ -407,7 +438,11 @@ function displayFeedback(feedbackData) {
         }
     });
     
-    document.getElementById('quizForm')?.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+    // Disable all inputs after submission
+    const quizForm = document.getElementById('quizForm');
+    if (quizForm) {
+        quizForm.querySelectorAll('input, textarea, button[type="submit"]').forEach(el => el.disabled = true);
+    }
 }
 
 
