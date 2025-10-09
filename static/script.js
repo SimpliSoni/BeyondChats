@@ -23,6 +23,8 @@ const scoreContent = document.getElementById('scoreContent');
 const attemptsList = document.getElementById('attemptsList');
 const progressAttempts = document.getElementById('progressAttempts');
 const progressAverage = document.getElementById('progressAverage');
+const avgScore = document.getElementById('avgScore');
+
 
 // NEW: Video recommendation elements
 const getVideoRecsBtn = document.getElementById('getVideoRecsBtn');
@@ -246,12 +248,12 @@ async function generateQuiz() {
     }
     
     // Add skeleton loading to quiz container
-    quizContainer.innerHTML = `
+    quizContainer.innerHTML = \`
         <div class="quiz-content quiz-loading" style="padding: 3rem; text-align: center;">
             <i class="fas fa-brain" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
             <p style="color: var(--text-secondary);">Analyzing your PDF and crafting questions...</p>
         </div>
-    `;
+    \`;
     
     showLoading('Crafting your custom quiz...');
     try {
@@ -271,13 +273,13 @@ async function generateQuiz() {
     } catch (error) {
         showToast(error.message, 'error');
         // Restore placeholder on error
-        quizContainer.innerHTML = `
+        quizContainer.innerHTML = \`
             <div class="quiz-placeholder">
                 <i class="fas fa-exclamation-circle" style="color: var(--error-color);"></i>
                 <h3>Error Generating Quiz</h3>
                 <p>${escapeHtml(error.message)}</p>
             </div>
-        `;
+        \`;
     } finally {
         hideLoading();
     }
@@ -289,22 +291,22 @@ function renderQuiz(quizData) {
         questionCounter++;
         let optionsHtml = '';
         if (type === 'mcq') {
-            optionsHtml = options.map((opt, i) => `
+            optionsHtml = options.map((opt, i) => \`
                 <div class="option-item">
                     <input type="radio" id="q${questionCounter}_opt${i}" name="q${questionCounter}" value="${opt}">
                     <label for="q${questionCounter}_opt${i}">${opt}</label>
                 </div>
-            `).join('');
+            \`).join('');
         } else {
-            optionsHtml = `<textarea class="answer-input" name="q${questionCounter}" placeholder="Your answer here..."></textarea>`;
+            optionsHtml = \`<textarea class="answer-input" name="q${questionCounter}" placeholder="Your answer here..."></textarea>\`;
         }
-        return `
+        return \`
             <div class="question-card" data-question-type="${type}">
                 <div class="question-number">${questionCounter}</div>
                 <p class="question-text">${question}</p>
                 <div class="options-list">${optionsHtml}</div>
                 <div class="feedback-card" style="display: none;"></div>
-            </div>`;
+            </div>\`;
     };
 
     const sections = [
@@ -313,18 +315,18 @@ function renderQuiz(quizData) {
         { title: 'Long Answer', type: 'laq', questions: quizData.laqs || [] },
     ];
 
-    quizContainer.innerHTML = `
+    quizContainer.innerHTML = \`
         <form id="quizForm" class="quiz-content">
-            ${sections.map(section => section.questions.length ? `
+            ${sections.map(section => section.questions.length ? \`
                 <div class="question-section">
                     <h3 class="section-title"><i class="fas fa-list-ul"></i>${section.title}</h3>
                     ${section.questions.map(q => renderQuestion(section.type, q.question, q.options)).join('')}
                 </div>
-            ` : '').join('')}
+            \` : '').join('')}
             <div class="quiz-actions">
                 <button type="submit" class="btn btn-primary submit-quiz-btn">Submit Answers</button>
             </div>
-        </form>`;
+        </form>\`;
     document.getElementById('quizForm').addEventListener('submit', handleQuizSubmit);
 }
 
@@ -356,7 +358,7 @@ async function handleQuizSubmit(event) {
         displayScore(result);
         displayFeedback(result.questionFeedback);
     } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
+        showToast(\`Error: ${error.message}\`, 'error');
         submitButton.disabled = false;
     } finally {
         hideLoading();
@@ -364,14 +366,14 @@ async function handleQuizSubmit(event) {
 }
 
 function displayScore(result) {
-    scoreContent.innerHTML = `
+    scoreContent.innerHTML = \`
         <div class="score-display">
             <div class="score-circle">
                 <span class="score-percentage">${result.score}</span>
             </div>
             <h3 class="score-message">Great Effort!</h3>
             <p class="score-details">${result.overallFeedback}</p>
-        </div>`;
+        </div>\`;
     scoreModal.classList.add('active');
 }
 
@@ -387,7 +389,7 @@ function displayFeedback(feedbackData) {
             const feedbackCard = questionCards[index].querySelector('.feedback-card');
             const isCorrect = fb.feedback.toLowerCase().includes('correct') || fb.feedback.toLowerCase().includes('good');
 
-            feedbackCard.innerHTML = `
+            feedbackCard.innerHTML = \`
                 <div class="feedback-header">
                     <span class="feedback-icon ${isCorrect ? 'correct' : 'incorrect'}">
                         <i class="fas ${isCorrect ? 'fa-check' : 'fa-times'}"></i>
@@ -395,7 +397,7 @@ function displayFeedback(feedbackData) {
                     <h4>Feedback</h4>
                 </div>
                 <p class="feedback-text">${escapeHtml(fb.feedback)}</p>
-            `;
+            \`;
             feedbackCard.style.display = 'block';
         }
     });
@@ -437,11 +439,11 @@ async function getYouTubeRecommendations() {
 
 function displayVideoRecommendations(recommendations) {
     if (!recommendations || recommendations.length === 0) {
-        videoContent.innerHTML = `
+        videoContent.innerHTML = \`
             <div class="video-empty-state">
                 <i class="fab fa-youtube"></i>
                 <p>No recommendations available at this time.</p>
-            </div>`;
+            </div>\`;
         return;
     }
 
@@ -454,7 +456,7 @@ function displayVideoRecommendations(recommendations) {
             url = "#";
         }
         
-        return `
+        return \`
             <li class="video-item">
                 <div class="video-number">${index + 1}</div>
                 <div class="video-info">
@@ -466,10 +468,10 @@ function displayVideoRecommendations(recommendations) {
                     </a>
                 </div>
             </li>
-        `;
+        \`;
     }).join('');
 
-    videoContent.innerHTML = `
+    videoContent.innerHTML = \`
         <div class="video-recommendations-intro">
             <p>Here are some relevant YouTube videos to help you learn more about the topics in your PDF:</p>
         </div>
@@ -480,8 +482,65 @@ function displayVideoRecommendations(recommendations) {
                 <span>These recommendations are generated based on the content of your selected PDF. Click any link to search YouTube for relevant educational videos.</span>
             </div>
         </div>
-    `;
+    \`;
 }
+
+
+// ============== FIX STARTS HERE ==============
+// This function was missing, causing the progress tab to not work.
+async function loadProgress() {
+    try {
+        showLoading('Loading your progress...');
+        const response = await fetch('/api/progress');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch progress');
+
+        const attempts = data.attempts || [];
+        const totalAttempts = attempts.length;
+        const averageScoreValue = totalAttempts > 0 ?
+            attempts.reduce((sum, a) => sum + parseFloat((a.score || '0%').replace('%', '')), 0) / totalAttempts
+            : 0;
+
+        // Update progress view
+        progressAttempts.textContent = totalAttempts;
+        progressAverage.textContent = \`${averageScoreValue.toFixed(0)}%\`;
+
+        // Update sidebar stats
+        avgScore.textContent = \`${averageScoreValue.toFixed(0)}%\`;
+
+
+        const attemptsListEl = document.getElementById('attemptsList');
+        if (attempts.length === 0) {
+            attemptsListEl.innerHTML = '<div class="attempt-item"><p>You haven\\'t attempted any quizzes yet.</p></div>';
+            return;
+        }
+
+        attemptsListEl.innerHTML = attempts.map(attempt => {
+            // Check for a valid timestamp
+            const date = attempt.timestamp ? new Date(attempt.timestamp).toLocaleString() : 'N/A';
+            const score = attempt.score || 'N/A';
+            
+            return \`
+                <div class="attempt-item">
+                    <div class="attempt-details">
+                        <p class="attempt-pdf">PDF: ${escapeHtml(attempt.pdf_filename || 'Unknown')}</p>
+                        <p class="attempt-date">${date}</p>
+                    </div>
+                    <div class="attempt-score">${score}</div>
+                </div>
+            \`;
+        }).join('');
+
+    } catch (error) {
+        showToast(\`Error loading progress: ${error.message}\`, 'error');
+        document.getElementById('attemptsList').innerHTML = \`<p class="error-state">${escapeHtml(error.message)}</p>\`;
+    } finally {
+        hideLoading();
+    }
+}
+// ============== FIX ENDS HERE ==============
+
+
 
 // Utility Functions
 function showLoading(message) {
@@ -495,7 +554,7 @@ function hideLoading() {
 
 function showToast(message, type = 'info') {
     toast.textContent = message;
-    toast.className = `toast ${type}`;
+    toast.className = \`toast \${type}\`;
     toast.style.display = 'block';
     setTimeout(() => {
         toast.style.opacity = 1;
@@ -509,6 +568,9 @@ function showToast(message, type = 'info') {
 }
 
 function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') {
+        return '';
+    }
     return unsafe
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
