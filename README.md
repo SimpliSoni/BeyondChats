@@ -11,24 +11,31 @@ This project is a fully functional, responsive web application built to help stu
 ## Features Implemented
 
 ### Must-Have Features (100% Covered)
--   **✅ Source Selector:** Users can select from a list of previously uploaded PDFs.
--   **✅ PDF Uploader:** A drag-and-drop interface allows users to upload their own PDF coursebooks.
--   **✅ PDF Viewer:** An embedded viewer displays the content of newly uploaded PDFs (serverless limitation: preview only available for current session uploads).
--   **✅ Quiz Generator Engine:**
-    -   Generates Multiple Choice, Short Answer, and Long Answer questions directly from the PDF content using the Gemini API.
-    -   Renders the quiz in a clean, user-friendly format.
-    -   Captures and submits user answers.
-    -   Scores submissions and stores attempts in a MongoDB database.
-    -   Provides AI-generated feedback and explanations for each question.
--   **✅ Progress Tracking:**
-    -   A dedicated "Progress" tab shows a history of all quiz attempts.
-    -   Displays key metrics like total attempts and average score.
 
-### UI/UX & Responsiveness
--   **🎨 Modern UI/UX:** The interface is inspired by modern web applications like ChatGPT, with a clean sidebar/main content layout.
--   **📱 Fully Responsive:** The layout seamlessly adapts to mobile, tablet, and desktop screens.
--   **🌓 Light/Dark Mode:** Includes a theme toggler for user preference.
--   **💬 User Feedback:** Incorporates loading spinners, progress bars, and toast notifications to keep the user informed.
+- **✅ Source Selector:** Users can select from a list of previously uploaded PDFs. A dropdown menu allows for easy switching between different study materials.
+- **✅ PDF Uploader:** A drag-and-drop interface allows users to upload their own PDF coursebooks. The backend processes the PDF to extract text for use in quizzes and chats.
+- **✅ PDF Viewer:** An embedded viewer displays the content of newly uploaded PDFs, allowing users to reference the material directly within the app. *(Note: Due to serverless limitations, the preview is only available for the currently uploaded file in a session.)*
+- **✅ Quiz Generator Engine:**
+    - Generates Multiple Choice, Short Answer, and Long Answer questions directly from the PDF content using the Gemini API.
+    - Renders the quiz in a clean, user-friendly format, capturing and submitting user answers.
+    - Scores submissions using the AI for nuanced evaluation and stores all attempts in a MongoDB database for tracking.
+    - Provides AI-generated feedback and explanations for each question to help users understand the topics better.
+    - Includes a "New Quiz" button to allow users to generate a fresh set of questions on demand.
+- **✅ Progress Tracking:**
+    - A dedicated "Progress" tab provides a dashboard to track the user's learning journey.
+    - It displays a history of all quiz attempts, showing the PDF name, date, and score.
+    - Key metrics like total attempts and average score are prominently displayed to give users a quick overview of their performance.
+
+### Nice-to-Have Features (100% Covered)
+
+- **✅ Chat UI (ChatGPT-inspired):** A complete, ChatGPT-like interface serves as a virtual teacher for students.
+    - Features a left drawer listing all chat histories, a main chat window for conversation, and an input box at the bottom.
+    - Users can create new chats or switch between previous conversations seamlessly.
+    - The design is clean, modern, and fully mobile-responsive, ensuring a great experience on any device.
+- **✅ RAG Answers with Citations:** The AI teaching assistant provides answers based on the content of the selected PDF.
+    - To ensure accuracy, the chatbot's answers cite the source material by quoting relevant snippets directly from the document, mimicking a RAG (Retrieval-Augmented Generation) system.
+- **✅ YouTube Videos Recommender:** The application enhances the learning experience by recommending relevant educational YouTube videos.
+    - Based on the content of the selected PDF, the AI suggests videos that can help the user better understand the topics.
 
 ---
 
@@ -41,7 +48,7 @@ This project uses a classic and robust client-server architecture optimized for 
 -   **Database:** **MongoDB**
     -   A flexible NoSQL database, perfect for storing PDF metadata and quiz attempts. `PyMongo` is used as the driver.
 -   **Frontend:** **Vanilla HTML, CSS, and JavaScript**
-    -   This choice was made deliberately to showcase strong foundational skills in core web technologies without relying on a framework. It demonstrates proficiency in DOM manipulation, asynchronous API calls (`fetch`), and state management from first principles.
+    -   This choice was made deliberately to showcase strong foundational skills in core web technologies without relying on a framework. It demonstrates proficiency in DOM manipulation, asynchronous logic, and modular JS.
 -   **AI Integration:** **Google Gemini API**
     -   Used for the core logic of parsing PDF text to generate questions and for scoring user-submitted answers with detailed feedback.
 -   **PDF Processing:** **PyPDF2**
@@ -126,14 +133,13 @@ For production deployments requiring persistent PDF storage, consider integratin
 
 ## Project Decisions & Tradeoffs
 
--   **Vanilla JS vs. a Framework:** I chose to use vanilla JavaScript to demonstrate strong foundational web development skills. While a framework like React could offer more complex state management, the chosen approach was faster to implement for this scope and proves a deeper understanding of the underlying browser APIs.
--   **Gemini API for Scoring:** Instead of simple string matching, I used a second call to the Gemini API for scoring. This provides more nuanced, intelligent feedback, which is a significant value-add for a learning tool, even if it introduces a slight delay.
--   **No User Authentication:** To focus on the core features required by the assignment within the given timeframe, a user authentication system was intentionally omitted. All data is currently public.
--   **In-Memory PDF Processing:** For serverless deployment compatibility, PDFs are processed entirely in-memory without persistent file storage. This is a trade-off between deployment simplicity and the ability to re-view uploaded PDFs.
+-   **Vanilla JS vs. a Framework:** I chose to use vanilla JavaScript to demonstrate strong foundational web development skills. While a framework like React could offer more complex state management, this approach highlights expertise in the core technologies.
+-   **Gemini API for Scoring:** Instead of simple string matching, I used a second call to the Gemini API for scoring. This provides more nuanced, intelligent feedback, which is a significant value-add for students.
+-   **No User Authentication:** To focus on the core features required by the assignment within the given timeframe, a user authentication system was intentionally omitted. All data is currently public and user-agnostic.
+-   **In-Memory PDF Processing:** For serverless deployment compatibility, PDFs are processed entirely in-memory without persistent file storage. This is a trade-off between deployment simplicity and long-term scalability.
 
 ---
 
 ## LLM Usage
 
-Large Language Models such as claude , co-pilot and gemini were used extensively and aggressively to meet the project's tight deadline, as encouraged by the assignment.
-
+Large Language Models such as Claude, Copilot, and Gemini were used extensively and aggressively to meet the project's tight deadline, as encouraged by the assignment.
