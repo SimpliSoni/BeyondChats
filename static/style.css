@@ -431,7 +431,12 @@ body {
     flex: 1;
     background: var(--bg-card);
     min-height: calc(100vh - 145px);
+    max-height: calc(100vh - 145px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
+
 
 .pdf-placeholder,
 .quiz-placeholder {
