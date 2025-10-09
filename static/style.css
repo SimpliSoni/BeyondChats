@@ -542,6 +542,13 @@ body {
     padding: 1.5rem;
     margin-bottom: 1rem;
     animation: fadeIn 0.4s ease;
+    border-left: 4px solid var(--primary-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.question-card:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
 }
 
 .question-number {
@@ -590,9 +597,11 @@ body {
 }
 
 .option-item input[type="radio"] {
-    margin-right: 0.75rem; /* ADDED: explicit margin */
-    accent-color: var(--primary-color); /* ADDED: modern radio styling */
+    margin-right: 0.75rem;
+    accent-color: var(--primary-color);
     cursor: pointer;
+    width: 20px;
+    height: 20px;
 }
 
 .option-item label {
@@ -1370,4 +1379,31 @@ body {
     font-size: 3rem;
     margin-bottom: 1rem;
     opacity: 0.5;
+}
+
+/* Add skeleton loading animation */
+.quiz-loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { 
+        opacity: 1; 
+    }
+    50% { 
+        opacity: 0.5; 
+    }
+}
+
+/* PDF Tips styling */
+.pdf-tips {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--primary-light);
+    border-radius: var(--radius-md);
+}
+
+.pdf-tips small {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
 }

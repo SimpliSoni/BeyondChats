@@ -10,6 +10,9 @@ import PyPDF2
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 import datetime
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 # --- Initialization ---
 load_dotenv()
@@ -82,6 +85,44 @@ def generate_with_retry(model, prompt, retries=3, delay=2):
             else:
                 print(f"API call failed after {retries} attempts: {e}")
                 raise e
+
+# --- RAG Helper Function ---
+def retrieve_relevant_chunks(text, query, chunk_size=500, top_k=3):
+    """
+    Simple RAG using TF-IDF for retrieving relevant text chunks.
+    
+    Args:
+        text: Full document text
+        query: User's question
+        chunk_size: Number of words per chunk
+        top_k: Number of top chunks to return
+    
+    Returns:
+        Concatenated relevant text chunks
+    """
+    # Split into chunks
+    words = text.split()
+    chunks = [' '.join(words[i:i+chunk_size]) 
+              for i in range(0, len(words), chunk_size)]
+    
+    if not chunks:
+        return text[:2000]  # Fallback to first 2000 chars
+    
+    # Vectorize using TF-IDF
+    vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
+    try:
+        chunk_vectors = vectorizer.fit_transform(chunks)
+        query_vector = vectorizer.transform([query])
+        
+        # Calculate cosine similarity
+        similarities = cosine_similarity(query_vector, chunk_vectors)[0]
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        
+        # Return top relevant chunks
+        return '\n\n'.join([chunks[i] for i in top_indices])
+    except Exception as e:
+        print(f"RAG retrieval error: {e}")
+        return chunks[0] if chunks else text[:2000]
 
 # --- API Endpoints ---
 
@@ -172,16 +213,18 @@ def handle_chat():
         if not pdf_doc or not pdf_doc.get('extracted_text'):
             return jsonify({"error": "PDF not found or has no text content."}), 404
         
-        text_content = pdf_doc.get('extracted_text')
+        # Use RAG to retrieve relevant chunks
+        full_text = pdf_doc.get('extracted_text')
+        relevant_text = retrieve_relevant_chunks(full_text, user_message, chunk_size=500, top_k=3)
         
         prompt = f"""
         You are a helpful AI teacher. A student has asked a question about a document they've uploaded.
-        Your task is to provide a clear and concise answer based ONLY on the provided text from the document.
+        Your task is to provide a clear and concise answer based ONLY on the provided relevant context.
         Do not use any external knowledge.
 
-        Full Document Text:
+        Relevant Context from Document:
         ---
-        {text_content}
+        {relevant_text}
         ---
 
         Student's Question: "{user_message}"

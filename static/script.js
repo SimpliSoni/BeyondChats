@@ -240,16 +240,25 @@ async function renderPdf(file) {
 
 // Quiz Lifecycle
 async function generateQuiz() {
-    if (!window.currentPdfId) { // Use window.currentPdfId
+    if (!window.currentPdfId) {
         showToast('Please select a PDF first.', 'warning');
         return;
     }
+    
+    // Add skeleton loading to quiz container
+    quizContainer.innerHTML = `
+        <div class="quiz-content quiz-loading" style="padding: 3rem; text-align: center;">
+            <i class="fas fa-brain" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
+            <p style="color: var(--text-secondary);">Analyzing your PDF and crafting questions...</p>
+        </div>
+    `;
+    
     showLoading('Crafting your custom quiz...');
     try {
         const response = await fetch('/api/generate-quiz', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: window.currentPdfId }), // Use window.currentPdfId
+            body: JSON.stringify({ pdfId: window.currentPdfId }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Quiz generation failed');
@@ -261,6 +270,14 @@ async function generateQuiz() {
         newQuizBtn.style.display = 'flex';
     } catch (error) {
         showToast(error.message, 'error');
+        // Restore placeholder on error
+        quizContainer.innerHTML = `
+            <div class="quiz-placeholder">
+                <i class="fas fa-exclamation-circle" style="color: var(--error-color);"></i>
+                <h3>Error Generating Quiz</h3>
+                <p>${escapeHtml(error.message)}</p>
+            </div>
+        `;
     } finally {
         hideLoading();
     }
