@@ -209,15 +209,18 @@ async function handlePdfSelect() {
     generateQuizBtn.disabled = !hasPdf;
     getVideoRecsBtn.disabled = !hasPdf;
     
+    // **FIX**: Enable/disable chat input based on PDF selection
+    chatElements.input.disabled = !hasPdf;
+    handleInputChange(); // Update send button state
+
     const chatPdfContext = document.getElementById('chatPdfContext');
 
     if (hasPdf) {
         chatPdfContext.textContent = `Discussing: ${selectedOption.textContent}`;
-        // Only try to render if it's the file we just uploaded
         if (currentPdfFile && selectedOption.textContent === currentPdfFile.name) {
             renderPdf(currentPdfFile);
         } else {
-            currentPdfFile = null; // Clear stale file object
+            currentPdfFile = null;
             pdfCanvas.style.display = 'none';
             const placeholder = pdfViewer.querySelector('.pdf-placeholder');
             placeholder.style.display = 'flex';
@@ -264,7 +267,6 @@ async function renderPdf(file) {
         } catch (error) {
             showToast('Failed to render PDF preview.', 'error');
             console.error("PDF rendering error:", error);
-            // Show placeholder with error message
             const placeholder = pdfViewer.querySelector('.pdf-placeholder');
             placeholder.style.display = 'flex';
             placeholder.querySelector('h3').textContent = 'PDF Preview Error';
@@ -605,7 +607,8 @@ function setupChatEventListeners() {
 // --- INPUT HANDLING (Chat) ---
 function handleInputChange() {
     const hasContent = chatElements.input.value.trim().length > 0;
-    chatElements.sendBtn.disabled = !hasContent || chatState.isTyping;
+    // Chat button is disabled if there's no PDF selected OR if there's no text
+    chatElements.sendBtn.disabled = !window.currentPdfId || !hasContent || chatState.isTyping;
     autoResizeTextarea();
 }
 

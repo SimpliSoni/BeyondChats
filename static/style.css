@@ -173,6 +173,7 @@ body {
 .pdf-placeholder p, .quiz-placeholder p { color: var(--text-secondary); margin-bottom: 1.5rem; }
 .pdf-tips { margin-top: 1rem; padding: 0.75rem; background: var(--primary-light); border-radius: var(--radius-md); }
 .pdf-tips small { color: var(--text-secondary); font-size: 0.8125rem; }
+/* **FIX**: Constrain PDF canvas to its container */
 #pdfCanvas { max-width: 100%; height: auto; }
 
 /* ============================================
