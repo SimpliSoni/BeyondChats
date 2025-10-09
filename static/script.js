@@ -1,363 +1,328 @@
-// ==================== Global State ====================
+// DOM Elements
+const fileInput = document.getElementById('fileInput');
+const pdfSelect = document.getElementById('pdfSelect');
+const generateQuizBtn = document.getElementById('generateQuizBtn');
+const newQuizBtn = document.getElementById('newQuizBtn');
+const refreshPDFsBtn = document.getElementById('refreshPDFs');
+const quizContainer = document.getElementById('quizContainer');
+const pdfViewer = document.getElementById('pdfViewer');
+const pdfCanvas = document.getElementById('pdfCanvas');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingText = document.getElementById('loadingText');
+const toast = document.getElementById('toast');
+const themeToggle = document.getElementById('themeToggle');
+const uploadProgress = document.getElementById('uploadProgress');
+const progressFill = document.querySelector('.progress-fill');
+const navBtns = document.querySelectorAll('.nav-btn[data-view]');
+const contentViews = document.querySelectorAll('.content-view');
+const scoreModal = document.getElementById('scoreModal');
+const closeModal = document.getElementById('closeModal');
+const reviewAnswers = document.getElementById('reviewAnswers');
+const tryAgain = document.getElementById('tryAgain');
+const scoreContent = document.getElementById('scoreContent');
+const attemptsList = document.getElementById('attemptsList');
+const progressAttempts = document.getElementById('progressAttempts');
+const progressAverage = document.getElementById('progressAverage');
+
+// NEW: Video recommendation elements
+const getVideoRecsBtn = document.getElementById('getVideoRecsBtn');
+const videoModal = document.getElementById('videoModal');
+const closeVideoModal = document.getElementById('closeVideoModal');
+const closeVideoModalBtn = document.getElementById('closeVideoModalBtn');
+const videoContent = document.getElementById('videoContent');
+
+// State
 let currentQuiz = null;
 let currentPdfFile = null;
 
-const chatState = {
-    chats: [],
-    currentChatId: null,
-    isTyping: false,
-};
+// Make currentPdfId globally accessible via window object
+window.currentPdfId = null;
 
-// ==================== DOM Element References ====================
-// Tabs
-const tabs = document.querySelectorAll('.tab');
-const tabContents = document.querySelectorAll('.tab-content');
+// Initialize
+document.addEventListener('DOMContentLoaded', initializeApp);
 
-// Quiz Elements
-const pdfUpload = document.getElementById('pdf-upload');
-const pdfSelect = document.getElementById('pdf-select');
-const generateQuizBtn = document.getElementById('generate-quiz-btn');
-const newQuizBtn = document.getElementById('new-quiz-btn');
-const quizContainer = document.getElementById('quiz-container');
-const submitQuizBtn = document.getElementById('submit-quiz-btn');
-const pdfViewer = document.getElementById('pdf-viewer');
-
-// Chat Elements
-const chatElements = {
-    messages: document.getElementById('chat-messages'),
-    input: document.getElementById('chat-input'),
-    sendBtn: document.getElementById('send-chat-btn'),
-    newChatBtn: document.getElementById('new-chat-btn'),
-    historyList: document.getElementById('chat-history-list'),
-    welcomeScreen: document.querySelector('.chat-welcome'),
-};
-
-// Video Elements
-const getVideoRecsBtn = document.getElementById('get-video-recs-btn');
-const videoModal = document.getElementById('video-modal');
-const closeVideoModal = document.getElementById('close-video-modal');
-const closeVideoModalBtn = document.getElementById('close-video-modal-btn');
-const videoList = document.getElementById('video-list');
-
-// Progress Elements
-const attemptsList = document.getElementById('attempts-list');
-const progressAttempts = document.getElementById('progress-attempts');
-const progressAverage = document.getElementById('progress-average');
-
-// Stats Elements
-const totalPdfs = document.getElementById('total-pdfs');
-const avgScore = document.getElementById('avg-score');
-
-// Score Modal
-const scoreModal = document.getElementById('score-modal');
-const scoreContent = document.getElementById('score-content');
-const closeScoreModal = document.getElementById('close-score-modal');
-const closeScoreModalBtn = document.getElementById('close-score-modal-btn');
-
-// Loading and Toast
-const loadingOverlay = document.getElementById('loading-overlay');
-const loadingText = document.getElementById('loading-text');
-const toast = document.getElementById('toast');
-
-// Upload Progress
-const uploadProgress = document.getElementById('upload-progress');
-
-// ==================== Utility Functions ====================
-function showLoading(text = 'Loading...') {
-    loadingText.textContent = text;
-    loadingOverlay.classList.add('active');
+function initializeApp() {
+    loadPDFs();
+    setupEventListeners();
+    checkTheme();
 }
 
-function hideLoading() {
-    loadingOverlay.classList.remove('active');
-}
+// Event Listeners
+function setupEventListeners() {
+    fileInput.addEventListener('change', handleFileUpload);
+    pdfSelect.addEventListener('change', handlePdfSelect);
+    generateQuizBtn.addEventListener('click', generateQuiz);
+    newQuizBtn.addEventListener('click', generateQuiz);
+    refreshPDFsBtn.addEventListener('click', () => {
+        showToast('Refreshing PDF list...', 'info');
+        loadPDFs();
+    });
+    themeToggle.addEventListener('click', toggleTheme);
+    navBtns.forEach(btn => btn.addEventListener('click', (e) => switchView(e.currentTarget.dataset.view)));
+    closeModal.addEventListener('click', () => scoreModal.classList.remove('active'));
+    reviewAnswers.addEventListener('click', () => {
+        scoreModal.classList.remove('active');
+        quizContainer.scrollIntoView({ behavior: 'smooth' });
+    });
+    tryAgain.addEventListener('click', () => {
+        scoreModal.classList.remove('active');
+        newQuizBtn.click();
+    });
 
-function showToast(message, type = 'info') {
-    toast.textContent = message;
-    toast.className = `toast ${type} show`;
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
+    // NEW: Video recommendations event listeners
+    getVideoRecsBtn.addEventListener('click', getYouTubeRecommendations);
+    closeVideoModal.addEventListener('click', () => videoModal.classList.remove('active'));
+    closeVideoModalBtn.addEventListener('click', () => videoModal.classList.remove('active'));
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// ==================== Tab Switching ====================
-function setupTabs() {
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const target = tab.dataset.tab;
-            
-            tabs.forEach(t => t.classList.remove('active'));
-            tabContents.forEach(tc => tc.classList.remove('active'));
-            
-            tab.classList.add('active');
-            document.getElementById(`${target}-tab`).classList.add('active');
-        });
+    const uploadArea = document.querySelector('.upload-area');
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      uploadArea.addEventListener(eventName, e => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+    ['dragenter', 'dragover'].forEach(eventName => {
+      uploadArea.addEventListener(eventName, () => uploadArea.classList.add('hover'));
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('hover'));
+    });
+    uploadArea.addEventListener('drop', e => {
+      fileInput.files = e.dataTransfer.files;
+      handleFileUpload({ target: fileInput });
     });
 }
 
-// ==================== PDF Upload and Selection ====================
-async function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if (!file.type.includes('pdf')) {
-        showToast('Please upload a PDF file', 'error');
-        return;
-    }
-
-    currentPdfFile = file;
-    const formData = new FormData();
-    formData.append('file', file);
-
-    uploadProgress.style.display = 'block';
-    uploadProgress.querySelector('.upload-progress-fill').style.width = '0%';
-    
-    try {
-        const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (!response.ok) throw new Error('Upload failed');
-        
-        const result = await response.json();
-        showToast('PDF uploaded successfully!', 'success');
-        
-        uploadProgress.querySelector('.upload-progress-fill').style.width = '100%';
-        setTimeout(() => {
-            uploadProgress.style.display = 'none';
-        }, 1000);
-        
-        await loadPDFs();
-        await loadProgress();
-        
-        pdfSelect.value = result.pdf_id;
-        window.currentPdfId = result.pdf_id;
-        generateQuizBtn.disabled = false;
-        getVideoRecsBtn.disabled = false;
-        
-        await renderPdf(currentPdfFile);
-    } catch (error) {
-        uploadProgress.style.display = 'none';
-        showToast('Failed to upload PDF. Please try again.', 'error');
-        console.error('Upload error:', error);
-    } finally {
-        pdfUpload.value = '';
-    }
+// Theme Management
+function checkTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.body.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
 }
 
+function toggleTheme() {
+    const newTheme = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    document.body.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    themeToggle.querySelector('i').className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+}
+
+// View Management
+function switchView(viewName) {
+    navBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewName));
+    contentViews.forEach(view => view.classList.toggle('active', view.id === `${viewName}View`));
+    if (viewName === 'progress') loadProgress();
+}
+
+// PDF Management
 async function loadPDFs() {
     try {
         const response = await fetch('/api/pdfs');
-        if (!response.ok) throw new Error('Failed to fetch PDFs');
-        
         const data = await response.json();
-        const pdfs = data.pdfs || [];
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch');
 
-        pdfSelect.innerHTML = '<option value="">Select a PDF</option>';
-        pdfs.forEach(pdf => {
+        pdfSelect.innerHTML = '<option value="">Choose a PDF...</option>';
+        data.pdfs.forEach(pdf => {
             const option = document.createElement('option');
             option.value = pdf._id;
             option.textContent = pdf.filename;
             pdfSelect.appendChild(option);
         });
-
-        totalPdfs.textContent = pdfs.length;
+        document.getElementById('totalQuizzes').textContent = data.pdfs.length;
     } catch (error) {
-        showToast('Failed to load PDFs', 'error');
-        console.error('Load PDFs error:', error);
+        showToast(`Error loading PDFs: ${error.message}`, 'error');
+    }
+}
+
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    currentPdfFile = file;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    uploadProgress.classList.add('active');
+    try {
+        const response = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Upload failed');
+
+        showToast('PDF uploaded successfully!', 'success');
+        await loadPDFs();
+        pdfSelect.value = data.pdf_id;
+        
+        // Render the PDF immediately since we still have it in memory
+        renderPdf(file);
+        
+        // Update state
+        window.currentPdfId = data.pdf_id;
+        const chatPdfContext = document.getElementById('chatPdfContext');
+        if (chatPdfContext) {
+            chatPdfContext.textContent = `Discussing: ${file.name}`;
+        }
+        generateQuizBtn.disabled = false;
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        uploadProgress.classList.remove('active');
+        fileInput.value = '';
     }
 }
 
 async function handlePdfSelect() {
-    const selectedPdfId = pdfSelect.value;
-    if (!selectedPdfId) {
+    const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
+    window.currentPdfId = selectedOption.value;
+
+    if (window.currentPdfId) {
+        // Update chat context indicator
+        const chatPdfContext = document.getElementById('chatPdfContext');
+        if (chatPdfContext) {
+            chatPdfContext.textContent = `Discussing: ${selectedOption.textContent}`;
+        }
+        
+        // Check if we have the file in memory
+        if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
+            renderPdf(currentPdfFile);
+        } else {
+            // Can't re-render PDFs in serverless environment
+            currentPdfFile = null;
+            pdfCanvas.style.display = 'none';
+            const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+            placeholder.style.display = 'flex';
+            placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
+            placeholder.querySelector('p').textContent = "The PDF was processed successfully, but preview is only available for newly uploaded files in this deployment.";
+        }
+        
+        generateQuizBtn.disabled = false;
+    } else {
+        currentPdfFile = null;
+        window.currentPdfId = null;
+        pdfCanvas.style.display = 'none';
+        const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+        placeholder.style.display = 'flex';
+        placeholder.querySelector('h3').textContent = "No PDF Selected";
+        placeholder.querySelector('p').textContent = "Upload or select a PDF to view it here";
         generateQuizBtn.disabled = true;
-        getVideoRecsBtn.disabled = true;
-        pdfViewer.innerHTML = '<p class="no-pdf">Select a PDF to view</p>';
-        return;
+        
+        // Clear chat context
+        const chatPdfContext = document.getElementById('chatPdfContext');
+        if (chatPdfContext) {
+            chatPdfContext.textContent = "No PDF Selected";
+        }
     }
-    
-    window.currentPdfId = selectedPdfId;
-    generateQuizBtn.disabled = false;
-    getVideoRecsBtn.disabled = false;
-    quizContainer.innerHTML = '';
-    newQuizBtn.style.display = 'none';
-    
-    pdfViewer.innerHTML = '<p class="no-pdf">PDF preview is only available for newly uploaded files in the current session.</p>';
-    
-    showToast('PDF selected! You can now generate a quiz.', 'success');
 }
 
 async function renderPdf(file) {
-    if (!file) {
-        pdfViewer.innerHTML = '<p class="no-pdf">No PDF to display</p>';
-        return;
-    }
+    const fileReader = new FileReader();
+    fileReader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.5 });
 
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        
-        pdfViewer.innerHTML = '';
-        
-        for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 5); pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 1.5 });
-            
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            canvas.className = 'pdf-page';
-            
-            await page.render({
-                canvasContext: context,
-                viewport: viewport
-            }).promise;
-            
-            pdfViewer.appendChild(canvas);
-        }
+        const canvas = pdfCanvas;
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
 
-        if (pdf.numPages > 5) {
-            const morePages = document.createElement('p');
-            morePages.className = 'more-pages';
-            morePages.textContent = `... and ${pdf.numPages - 5} more pages`;
-            pdfViewer.appendChild(morePages);
-        }
-    } catch (error) {
-        console.error('PDF rendering error:', error);
-        pdfViewer.innerHTML = '<p class="no-pdf">Failed to render PDF preview</p>';
-    }
+        page.render({ canvasContext: context, viewport: viewport });
+        
+        canvas.style.display = 'block';
+        pdfViewer.querySelector('.pdf-placeholder').style.display = 'none';
+    };
+    fileReader.readAsArrayBuffer(file);
 }
 
-// ==================== Quiz Generation and Submission ====================
+// Quiz Lifecycle
 async function generateQuiz() {
-    if (!window.currentPdfId) {
-        showToast('Please select a PDF first', 'warning');
+    if (!window.currentPdfId) { // Use window.currentPdfId
+        showToast('Please select a PDF first.', 'warning');
         return;
     }
-
-    showLoading('Generating quiz from your PDF...');
+    showLoading('Crafting your custom quiz...');
     try {
         const response = await fetch('/api/generate-quiz', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdfId: window.currentPdfId }),
+            body: JSON.stringify({ pdfId: window.currentPdfId }), // Use window.currentPdfId
         });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Quiz generation failed');
 
-        if (!response.ok) throw new Error('Failed to generate quiz');
-        
-        const quizData = await response.json();
-        currentQuiz = quizData;
-        
-        hideLoading();
-        renderQuiz(quizData);
-        
-        quizContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        
-        newQuizBtn.style.display = 'inline-flex';
-        showToast('Quiz generated successfully!', 'success');
+        currentQuiz = data;
+        renderQuiz(data);
+        showToast('Your quiz is ready!', 'success');
+        generateQuizBtn.style.display = 'none';
+        newQuizBtn.style.display = 'flex';
     } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
         hideLoading();
-        showToast('Failed to generate quiz. Please try again.', 'error');
-        console.error('Quiz generation error:', error);
     }
 }
 
 function renderQuiz(quizData) {
-    if (!quizData || (!quizData.mcqs?.length && !quizData.saqs?.length && !quizData.laqs?.length)) {
-        quizContainer.innerHTML = '<p class="no-data">No questions generated. Please try again.</p>';
-        showToast('No questions were generated. Please try again.', 'warning');
-        return;
-    }
-
-    let html = '<div class="quiz-questions">';
-
-    if (quizData.mcqs && quizData.mcqs.length > 0) {
-        html += '<h3 class="question-type-header">Multiple Choice Questions</h3>';
-        quizData.mcqs.forEach((mcq, index) => {
-            html += `
-                <div class="question-card">
-                    <p class="question-text"><strong>Q${index + 1}.</strong> ${escapeHtml(mcq.question)}</p>
-                    <div class="mcq-options">
-                        ${mcq.options.map((option, optIndex) => `
-                            <label class="mcq-option">
-                                <input type="radio" name="mcq-${index}" value="${escapeHtml(option)}">
-                                <span>${escapeHtml(option)}</span>
-                            </label>
-                        `).join('')}
-                    </div>
+    let questionCounter = 0;
+    const renderQuestion = (type, question, options = []) => {
+        questionCounter++;
+        let optionsHtml = '';
+        if (type === 'mcq') {
+            optionsHtml = options.map((opt, i) => `
+                <div class="option-item">
+                    <input type="radio" id="q${questionCounter}_opt${i}" name="q${questionCounter}" value="${opt}">
+                    <label for="q${questionCounter}_opt${i}">${opt}</label>
                 </div>
-            `;
-        });
-    }
+            `).join('');
+        } else {
+            optionsHtml = `<textarea class="answer-input" name="q${questionCounter}" placeholder="Your answer here..."></textarea>`;
+        }
+        return `
+            <div class="question-card" data-question-type="${type}">
+                <div class="question-number">${questionCounter}</div>
+                <p class="question-text">${question}</p>
+                <div class="options-list">${optionsHtml}</div>
+                <div class="feedback-card" style="display: none;"></div>
+            </div>`;
+    };
 
-    if (quizData.saqs && quizData.saqs.length > 0) {
-        html += '<h3 class="question-type-header">Short Answer Questions</h3>';
-        quizData.saqs.forEach((saq, index) => {
-            html += `
-                <div class="question-card">
-                    <p class="question-text"><strong>Q${index + 1}.</strong> ${escapeHtml(saq.question)}</p>
-                    <textarea class="answer-input" data-type="saq" data-index="${index}" placeholder="Enter your answer here..." rows="4"></textarea>
+    const sections = [
+        { title: 'Multiple Choice', type: 'mcq', questions: quizData.mcqs || [] },
+        { title: 'Short Answer', type: 'saq', questions: quizData.saqs || [] },
+        { title: 'Long Answer', type: 'laq', questions: quizData.laqs || [] },
+    ];
+
+    quizContainer.innerHTML = `
+        <form id="quizForm" class="quiz-content">
+            ${sections.map(section => section.questions.length ? `
+                <div class="question-section">
+                    <h3 class="section-title"><i class="fas fa-list-ul"></i>${section.title}</h3>
+                    ${section.questions.map(q => renderQuestion(section.type, q.question, q.options)).join('')}
                 </div>
-            `;
-        });
-    }
-
-    if (quizData.laqs && quizData.laqs.length > 0) {
-        html += '<h3 class="question-type-header">Long Answer Questions</h3>';
-        quizData.laqs.forEach((laq, index) => {
-            html += `
-                <div class="question-card">
-                    <p class="question-text"><strong>Q${index + 1}.</strong> ${escapeHtml(laq.question)}</p>
-                    <textarea class="answer-input" data-type="laq" data-index="${index}" placeholder="Enter your detailed answer here..." rows="8"></textarea>
-                </div>
-            `;
-        });
-    }
-
-    html += '</div>';
-    quizContainer.innerHTML = html;
-    submitQuizBtn.style.display = 'inline-flex';
+            ` : '').join('')}
+            <div class="quiz-actions">
+                <button type="submit" class="btn btn-primary submit-quiz-btn">Submit Answers</button>
+            </div>
+        </form>`;
+    document.getElementById('quizForm').addEventListener('submit', handleQuizSubmit);
 }
 
-async function submitQuiz() {
-    if (!currentQuiz) {
-        showToast('No quiz to submit', 'warning');
-        return;
-    }
+async function handleQuizSubmit(event) {
+    event.preventDefault();
+    const submitButton = event.target.querySelector('.submit-quiz-btn');
+    submitButton.disabled = true;
+    
+    const formData = new FormData(event.target);
+    const userAnswers = {};
+    formData.forEach((value, key) => {
+        userAnswers[key] = value;
+    });
 
-    const userAnswers = { mcqs: [], saqs: [], laqs: [] };
-
-    if (currentQuiz.mcqs) {
-        currentQuiz.mcqs.forEach((_, index) => {
-            const selected = document.querySelector(`input[name="mcq-${index}"]:checked`);
-            userAnswers.mcqs.push(selected ? selected.value : '');
-        });
-    }
-
-    if (currentQuiz.saqs) {
-        currentQuiz.saqs.forEach((_, index) => {
-            const textarea = document.querySelector(`textarea[data-type="saq"][data-index="${index}"]`);
-            userAnswers.saqs.push(textarea ? textarea.value.trim() : '');
-        });
-    }
-
-    if (currentQuiz.laqs) {
-        currentQuiz.laqs.forEach((_, index) => {
-            const textarea = document.querySelector(`textarea[data-type="laq"][data-index="${index}"]`);
-            userAnswers.laqs.push(textarea ? textarea.value.trim() : '');
-        });
-    }
-
-    showLoading('Scoring your quiz...');
+    showLoading('Evaluating your answers...');
     try {
         const response = await fetch('/api/score-quiz', {
             method: 'POST',
@@ -368,286 +333,71 @@ async function submitQuiz() {
                 userAnswers: userAnswers
             }),
         });
-
-        if (!response.ok) throw new Error('Failed to score quiz');
-        
         const result = await response.json();
-        hideLoading();
+        if (!response.ok) throw new Error(result.error || 'Scoring failed');
+
         displayScore(result);
-        await loadProgress();
+        displayFeedback(result.questionFeedback);
     } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+        submitButton.disabled = false;
+    } finally {
         hideLoading();
-        showToast('Failed to score quiz. Please try again.', 'error');
-        console.error('Score quiz error:', error);
     }
 }
 
 function displayScore(result) {
-    const score = result.score || '0%';
-    const feedback = result.overallFeedback || 'No feedback available';
-    
     scoreContent.innerHTML = `
         <div class="score-display">
             <div class="score-circle">
-                <span class="score-value">${escapeHtml(score)}</span>
+                <span class="score-percentage">${result.score}</span>
             </div>
-            <h3>Quiz Complete!</h3>
-            <p class="feedback-text">${escapeHtml(feedback)}</p>
-        </div>
-    `;
-    
+            <h3 class="score-message">Great Effort!</h3>
+            <p class="score-details">${result.overallFeedback}</p>
+        </div>`;
     scoreModal.classList.add('active');
-    scoreModal.scrollTop = 0;
 }
 
-// ==================== Chat Functionality ====================
-function generateChatId() {
-    return `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function getCurrentChat() {
-    return chatState.chats.find(chat => chat.id === chatState.currentChatId);
-}
-
-function saveChatHistory() {
-    try {
-        const chatsToSave = chatState.chats.map(chat => ({
-            ...chat,
-            messages: chat.messages || []
-        }));
-        localStorage.setItem('chatHistory', JSON.stringify(chatsToSave));
-        localStorage.setItem('currentChatId', chatState.currentChatId || '');
-    } catch (error) {
-        console.error('Failed to save chat history:', error);
-    }
-}
-
-function loadChatHistory() {
-    try {
-        const savedChats = localStorage.getItem('chatHistory');
-        const savedCurrentId = localStorage.getItem('currentChatId');
-        
-        if (savedChats) {
-            chatState.chats = JSON.parse(savedChats);
-            chatState.currentChatId = savedCurrentId || null;
-            
-            if (chatState.currentChatId) {
-                const currentChat = getCurrentChat();
-                if (currentChat && currentChat.messages.length > 0) {
-                    hideWelcomeScreen();
-                    renderMessages(currentChat.messages);
-                }
-            }
-        }
-        
-        if (chatState.chats.length === 0) {
-            createNewChat();
-        } else {
-            updateChatHistoryUI();
-        }
-    } catch (error) {
-        console.error('Failed to load chat history:', error);
-        createNewChat();
-    }
-}
-
-function createNewChat() {
-    if (chatState.currentChatId && getCurrentChat()) {
-        saveChatHistory();
-    }
-    
-    const newChatId = generateChatId();
-    const newChat = {
-        id: newChatId,
-        title: 'New Chat',
-        messages: [],
-        createdAt: new Date().toISOString(),
-    };
-    
-    chatState.chats.unshift(newChat);
-    chatState.currentChatId = newChatId;
-    
-    clearMessages();
-    showWelcomeScreen();
-    updateChatHistoryUI();
-    saveChatHistory();
-    
-    chatElements.input.focus();
-}
-
-function switchToChat(chatId) {
-    if (chatState.currentChatId && getCurrentChat()) {
-        saveChatHistory();
-    }
-    
-    chatState.currentChatId = chatId;
-    const chat = getCurrentChat();
-    
-    if (chat) {
-        clearMessages();
-        if (chat.messages.length === 0) {
-            showWelcomeScreen();
-        } else {
-            hideWelcomeScreen();
-            renderMessages(chat.messages);
-        }
-        updateChatHistoryUI();
-    }
-}
-
-function deleteChat(chatId, event) {
-    event.stopPropagation();
-    
-    if (chatState.chats.length === 1) {
-        showToast('Cannot delete the last chat', 'warning');
+function displayFeedback(feedbackData) {
+    if (!feedbackData || !Array.isArray(feedbackData)) {
+        console.warn('No feedback data provided');
         return;
     }
-    
-    chatState.chats = chatState.chats.filter(chat => chat.id !== chatId);
-    
-    if (chatState.currentChatId === chatId) {
-        chatState.currentChatId = chatState.chats[0].id;
-        switchToChat(chatState.currentChatId);
-    }
-    
-    updateChatHistoryUI();
-    saveChatHistory();
-    showToast('Chat deleted', 'success');
-}
 
-function updateChatHistoryUI() {
-    chatElements.historyList.innerHTML = chatState.chats.map(chat => `
-        <div class="chat-history-item ${chat.id === chatState.currentChatId ? 'active' : ''}" 
-             onclick="switchToChat('${chat.id}')">
-            <div class="chat-history-content">
-                <span class="chat-title">${escapeHtml(chat.title)}</span>
-                <span class="chat-date">${new Date(chat.createdAt).toLocaleDateString()}</span>
-            </div>
-            <button class="delete-chat-btn" onclick="deleteChat('${chat.id}', event)" title="Delete chat">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    `).join('');
-}
+    const questionCards = document.querySelectorAll('.question-card');
+    feedbackData.forEach((fb, index) => {
+        if (questionCards[index]) {
+            const feedbackCard = questionCards[index].querySelector('.feedback-card');
+            const isCorrect = fb.feedback.toLowerCase().includes('correct') || fb.feedback.toLowerCase().includes('good');
 
-function showWelcomeScreen() {
-    chatElements.welcomeScreen.style.display = 'flex';
-}
-
-function hideWelcomeScreen() {
-    chatElements.welcomeScreen.style.display = 'none';
-}
-
-function clearMessages() {
-    chatElements.messages.innerHTML = '';
-}
-
-function renderMessages(messages) {
-    clearMessages();
-    messages.forEach(msg => {
-        addMessageToUI(msg.role, msg.content, msg.citation);
+            feedbackCard.innerHTML = `
+                <div class="feedback-header">
+                    <span class="feedback-icon ${isCorrect ? 'correct' : 'incorrect'}">
+                        <i class="fas ${isCorrect ? 'fa-check' : 'fa-times'}"></i>
+                    </span>
+                    <h4>Feedback</h4>
+                </div>
+                <p class="feedback-text">${escapeHtml(fb.feedback)}</p>
+            `;
+            feedbackCard.style.display = 'block';
+        }
     });
-}
-
-function addMessageToUI(role, content, citation = null) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `chat-message ${role}`;
     
-    let messageHTML = `<div class="message-content">${escapeHtml(content)}</div>`;
-    
-    if (citation && role === 'assistant') {
-        messageHTML += `
-            <div class="citation">
-                <i class="fas fa-quote-left"></i>
-                <span>${escapeHtml(citation)}</span>
-            </div>
-        `;
+    // Disable the form after feedback is displayed
+    const quizForm = document.getElementById('quizForm');
+    if (quizForm) {
+        quizForm.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
     }
-    
-    messageDiv.innerHTML = messageHTML;
-    chatElements.messages.appendChild(messageDiv);
-    chatElements.messages.scrollTop = chatElements.messages.scrollHeight;
 }
 
-async function sendMessage() {
-    const message = chatElements.input.value.trim();
-    if (!message) return;
-    
+// Video Recommendations
+async function getYouTubeRecommendations() {
     if (!window.currentPdfId) {
-        showToast('Please select a PDF first from the Quiz tab', 'warning');
-        return;
-    }
-    
-    if (chatState.isTyping) return;
-    
-    const currentChat = getCurrentChat();
-    if (!currentChat) return;
-    
-    hideWelcomeScreen();
-    
-    currentChat.messages.push({ role: 'user', content: message });
-    addMessageToUI('user', message);
-    
-    if (currentChat.title === 'New Chat' && message.length > 0) {
-        currentChat.title = message.substring(0, 30) + (message.length > 30 ? '...' : '');
-        updateChatHistoryUI();
-    }
-    
-    chatElements.input.value = '';
-    chatState.isTyping = true;
-    chatElements.sendBtn.disabled = true;
-    
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'chat-message assistant typing';
-    typingDiv.innerHTML = '<div class="message-content"><span class="typing-indicator"><span></span><span></span><span></span></span></div>';
-    chatElements.messages.appendChild(typingDiv);
-    chatElements.messages.scrollTop = chatElements.messages.scrollHeight;
-
-    try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                message: message,
-                pdfId: window.currentPdfId 
-            }),
-        });
-
-        typingDiv.remove();
-
-        if (!response.ok) throw new Error('Chat request failed');
-        
-        const data = await response.json();
-        const aiMessage = data.answer || 'Sorry, I could not generate a response.';
-        const citation = data.citation || null;
-        
-        currentChat.messages.push({ 
-            role: 'assistant', 
-            content: aiMessage,
-            citation: citation 
-        });
-        addMessageToUI('assistant', aiMessage, citation);
-        
-        saveChatHistory();
-    } catch (error) {
-        typingDiv.remove();
-        showToast('Failed to get response. Please try again.', 'error');
-        console.error('Chat error:', error);
-    } finally {
-        chatState.isTyping = false;
-        chatElements.sendBtn.disabled = false;
-        chatElements.input.focus();
-    }
-}
-
-// ==================== Video Recommendations ====================
-async function getVideoRecommendations() {
-    if (!window.currentPdfId) {
-        showToast('Please select a PDF first', 'warning');
+        showToast('Please select a PDF first.', 'warning');
         return;
     }
 
-    showLoading('Finding relevant educational videos...');
+    showLoading('Finding relevant video recommendations...');
     try {
         const response = await fetch('/api/recommend-videos', {
             method: 'POST',
@@ -655,139 +405,97 @@ async function getVideoRecommendations() {
             body: JSON.stringify({ pdfId: window.currentPdfId }),
         });
 
-        if (!response.ok) throw new Error('Failed to get video recommendations');
-        
         const data = await response.json();
-        hideLoading();
-        displayVideoRecommendations(data.recommendations || []);
+        if (!response.ok) throw new Error(data.error || 'Failed to get recommendations');
+
+        displayVideoRecommendations(data.recommendations);
+        videoModal.classList.add('active');
+        showToast('Video recommendations loaded!', 'success');
     } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
         hideLoading();
-        showToast('Failed to get video recommendations. Please try again.', 'error');
-        console.error('Video recommendations error:', error);
     }
 }
 
-function displayVideoRecommendations(videos) {
-    if (!videos || videos.length === 0) {
-        videoList.innerHTML = '<p class="no-data">No video recommendations available.</p>';
-    } else {
-        videoList.innerHTML = videos.map(video => `
-            <div class="video-card">
-                <i class="fab fa-youtube video-icon"></i>
+function displayVideoRecommendations(recommendations) {
+    if (!recommendations || recommendations.length === 0) {
+        videoContent.innerHTML = `
+            <div class="video-empty-state">
+                <i class="fab fa-youtube"></i>
+                <p>No recommendations available at this time.</p>
+            </div>`;
+        return;
+    }
+
+    const videoList = recommendations.map((video, index) => {
+        let url = video.url;
+        
+        // SECURITY FIX: Validate YouTube URL
+        if (!url || !url.startsWith("https://www.youtube.com/")) {
+            console.warn("Invalid YouTube URL blocked:", url);
+            url = "#";
+        }
+        
+        return `
+            <li class="video-item">
+                <div class="video-number">${index + 1}</div>
                 <div class="video-info">
-                    <h4>${escapeHtml(video.title)}</h4>
-                    <a href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer" class="video-link">
-                        Watch on YouTube <i class="fas fa-external-link-alt"></i>
+                    <h4 class="video-title">${escapeHtml(video.title)}</h4>
+                    <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-link">
+                        <i class="fab fa-youtube"></i>
+                        Watch on YouTube
+                        <i class="fas fa-external-link-alt"></i>
                     </a>
                 </div>
+            </li>
+        `;
+    }).join('');
+
+    videoContent.innerHTML = `
+        <div class="video-recommendations-intro">
+            <p>Here are some relevant YouTube videos to help you learn more about the topics in your PDF:</p>
+        </div>
+        <ul class="video-list">${videoList}</ul>
+        <div class="video-recommendations-footer">
+            <div class="video-hint">
+                <i class="fas fa-info-circle"></i>
+                <span>These recommendations are generated based on the content of your selected PDF. Click any link to search YouTube for relevant educational videos.</span>
             </div>
-        `).join('');
-    }
-    videoModal.classList.add('active');
+        </div>
+    `;
 }
 
-// ==================== Progress/Stats ====================
-async function loadProgress() {
-    try {
-        const response = await fetch('/api/progress');
-        if (!response.ok) throw new Error('Failed to fetch progress');
-        
-        const data = await response.json();
-        const attempts = data.attempts || [];
-        
-        progressAttempts.textContent = attempts.length;
-        
-        if (attempts.length > 0) {
-            const scores = attempts.map(a => {
-                const scoreStr = a.score || '0%';
-                return parseInt(scoreStr.replace('%', ''));
-            });
-            const average = Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
-            progressAverage.textContent = `${average}%`;
-            avgScore.textContent = `${average}%`;
-        } else {
-            progressAverage.textContent = '0%';
-            avgScore.textContent = '0%';
-        }
-        
-        const pdfsResponse = await fetch('/api/pdfs');
-        if (pdfsResponse.ok) {
-            const pdfsData = await pdfsResponse.json();
-            totalPdfs.textContent = pdfsData.pdfs?.length || 0;
-        }
-        
-        if (attempts.length === 0) {
-            attemptsList.innerHTML = '<p class="no-data">No quiz attempts yet. Complete a quiz to see your progress!</p>';
-        } else {
-            attemptsList.innerHTML = attempts.map(attempt => `
-                <div class="attempt-card">
-                    <div class="attempt-header">
-                        <h4>${escapeHtml(attempt.pdf_filename || 'Unknown PDF')}</h4>
-                        <span class="attempt-score">${escapeHtml(attempt.score || 'N/A')}</span>
-                    </div>
-                    <p class="attempt-date">${new Date(attempt.timestamp).toLocaleString()}</p>
-                    <p class="attempt-feedback">${escapeHtml(attempt.feedback || 'No feedback available')}</p>
-                </div>
-            `).join('');
-        }
-    } catch (error) {
-        console.error('Failed to load progress:', error);
-        showToast('Failed to load progress data', 'error');
-    }
+// Utility Functions
+function showLoading(message) {
+    loadingText.textContent = message || 'Loading...';
+    loadingOverlay.classList.add('active');
 }
 
-// ==================== Event Listeners Setup ====================
-function setupMainEventListeners() {
-    pdfUpload.addEventListener('change', handleFileUpload);
-    pdfSelect.addEventListener('change', handlePdfSelect);
-    generateQuizBtn.addEventListener('click', generateQuiz);
-    newQuizBtn.addEventListener('click', generateQuiz);
-    submitQuizBtn.addEventListener('click', submitQuiz);
-    getVideoRecsBtn.addEventListener('click', getVideoRecommendations);
-    
-    chatElements.sendBtn.addEventListener('click', sendMessage);
-    chatElements.input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-    chatElements.newChatBtn.addEventListener('click', createNewChat);
-    
-    closeVideoModal.addEventListener('click', () => {
-        videoModal.classList.remove('active');
-    });
-    closeVideoModalBtn.addEventListener('click', () => {
-        videoModal.classList.remove('active');
-    });
-    videoModal.addEventListener('click', (e) => {
-        if (e.target === videoModal) {
-            videoModal.classList.remove('active');
-        }
-    });
-    
-    closeScoreModal.addEventListener('click', () => {
-        scoreModal.classList.remove('active');
-    });
-    closeScoreModalBtn.addEventListener('click', () => {
-        scoreModal.classList.remove('active');
-    });
-    scoreModal.addEventListener('click', (e) => {
-        if (e.target === scoreModal) {
-            scoreModal.classList.remove('active');
-        }
-    });
+function hideLoading() {
+    loadingOverlay.classList.remove('active');
 }
 
-// ==================== Initialization ====================
-async function init() {
-    setupTabs();
-    setupMainEventListeners();
-    await loadPDFs();
-    await loadProgress();
-    loadChatHistory();
-    
-    console.log('App initialized successfully!');
+function showToast(message, type = 'info') {
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+    toast.style.display = 'block';
+    setTimeout(() => {
+        toast.style.opacity = 1;
+    }, 10);
+    setTimeout(() => {
+        toast.style.opacity = 0;
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 300);
+    }, 3000);
 }
 
-document.addEventListener('DOMContentLoaded', init);
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}

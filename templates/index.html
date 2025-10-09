@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuizGenius - AI-Powered Study Assistant</title>
     <link rel="stylesheet" href="static/style.css">
+    <link rel="stylesheet" href="static/chat-style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -12,6 +13,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 </head>
 <body>
+    <!-- Header Navigation -->
     <header class="app-header">
         <div class="header-content">
             <div class="logo">
@@ -38,7 +40,9 @@
         </div>
     </header>
 
+    <!-- Main Container -->
     <main class="app-container">
+        <!-- Sidebar Controls -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h2>Study Materials</h2>
@@ -47,6 +51,7 @@
                 </button>
             </div>
 
+            <!-- Upload Section -->
             <div class="upload-section">
                 <label for="fileInput" class="upload-area">
                     <i class="fas fa-cloud-upload-alt"></i>
@@ -62,6 +67,7 @@
                 </div>
             </div>
 
+            <!-- PDF Selection -->
             <div class="pdf-section">
                 <label class="section-label">Select PDF</label>
                 <div class="select-wrapper">
@@ -72,8 +78,9 @@
                 </div>
             </div>
 
+            <!-- Quiz Controls -->
             <div class="quiz-controls">
-                <button id="generateQuizBtn" class="btn btn-primary btn-large" disabled>
+                <button id="generateQuizBtn" class="btn btn-primary btn-large">
                     <i class="fas fa-magic"></i>
                     Generate Quiz
                 </button>
@@ -81,17 +88,18 @@
                     <i class="fas fa-redo"></i>
                     New Quiz
                 </button>
-                <button id="getVideoRecsBtn" class="btn btn-large" disabled>
+                <button id="getVideoRecsBtn" class="btn btn-large">
                     <i class="fab fa-youtube"></i>
                     Get Video Recommendations
                 </button>
             </div>
 
+            <!-- Stats Card -->
             <div class="stats-card">
                 <h3>Quick Stats</h3>
                 <div class="stat-item">
-                    <span class="stat-label">Total PDFs</span>
-                    <span class="stat-value" id="totalPdfs">0</span>
+                    <span class="stat-label">Total Quizzes</span>
+                    <span class="stat-value" id="totalQuizzes">0</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">Average Score</span>
@@ -100,20 +108,21 @@
             </div>
         </aside>
 
+        <!-- Main Content Area -->
         <div class="main-content">
+            <!-- Quiz View -->
             <div id="quizView" class="content-view active">
+                <!-- PDF Viewer -->
                 <div class="pdf-viewer" id="pdfViewer">
                     <div class="pdf-placeholder">
                         <i class="fas fa-file-pdf"></i>
                         <h3>No PDF Selected</h3>
-                        <p>Upload a PDF or select from library</p>
-                        <div class="pdf-tips">
-                            <small>💡 Supported: Text-based PDFs up to 16MB</small>
-                        </div>
+                        <p>Upload or select a PDF to view it here</p>
                     </div>
                     <canvas id="pdfCanvas" style="display: none;"></canvas>
                 </div>
 
+                <!-- Quiz Container -->
                 <div class="quiz-container" id="quizContainer">
                     <div class="quiz-placeholder">
                         <i class="fas fa-question-circle"></i>
@@ -137,7 +146,9 @@
                 </div>
             </div>
 
+            <!-- Chat View -->
             <div id="chatView" class="content-view chat-view">
+                <!-- Chat Sidebar (History) -->
                 <aside class="chat-sidebar" id="chatSidebar">
                     <div class="chat-sidebar-header">
                         <button class="btn btn-primary chat-new-btn" id="newChatBtn">
@@ -146,10 +157,13 @@
                         </button>
                     </div>
                     <div class="chat-history-list" id="chatHistoryList">
-                        </div>
+                        <!-- Chat history items will be dynamically added here -->
+                    </div>
                 </aside>
 
+                <!-- Chat Main Area -->
                 <div class="chat-main">
+                    <!-- Chat Header (NEW) -->
                     <div class="chat-header">
                         <div class="chat-header-content">
                             <h3>AI Teacher</h3>
@@ -157,13 +171,41 @@
                         </div>
                     </div>
 
+                    <!-- Sidebar Toggle (Mobile) -->
                     <button class="chat-sidebar-toggle" id="chatSidebarToggle">
                         <i class="fas fa-bars"></i>
                     </button>
 
+                    <!-- Chat Messages Container -->
                     <div class="chat-messages" id="chatMessages">
+                        <div class="chat-welcome">
+                            <div class="chat-welcome-icon">
+                                <i class="fas fa-chalkboard-teacher"></i>
+                            </div>
+                            <h2>Hello! I'm your AI Teacher</h2>
+                            <p>Ask me anything about your study materials, or let's discuss concepts you're learning.</p>
+                            <div class="chat-suggestions">
+                                <button class="suggestion-chip" data-suggestion="Explain this concept to me">
+                                    <i class="fas fa-lightbulb"></i>
+                                    Explain a concept
+                                </button>
+                                <button class="suggestion-chip" data-suggestion="Help me understand this topic better">
+                                    <i class="fas fa-book-reader"></i>
+                                    Deep dive into a topic
+                                </button>
+                                <button class="suggestion-chip" data-suggestion="Can you give me some practice questions?">
+                                    <i class="fas fa-question-circle"></i>
+                                    Practice questions
+                                </button>
+                                <button class="suggestion-chip" data-suggestion="What are the key takeaways from this material?">
+                                    <i class="fas fa-key"></i>
+                                    Key takeaways
+                                </button>
+                            </div>
                         </div>
+                    </div>
 
+                    <!-- Chat Input Area -->
                     <div class="chat-input-container">
                         <div class="chat-input-wrapper">
                             <textarea 
@@ -183,6 +225,7 @@
                 </div>
             </div>
 
+            <!-- Progress View -->
             <div id="progressView" class="content-view">
                 <div class="progress-header">
                     <h2>Your Learning Journey</h2>
@@ -208,7 +251,7 @@
                             <i class="fas fa-chart-line"></i>
                         </div>
                         <h3>Improvement</h3>
-                        <p class="progress-value" id="progressTrend">--</p>
+                        <p class="progress-value" id="progressTrend">+0%</p>
                     </div>
                 </div>
                 <div class="recent-attempts">
@@ -219,6 +262,7 @@
         </div>
     </main>
 
+    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
             <div class="spinner"></div>
@@ -226,11 +270,13 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
     <div class="toast" id="toast">
-        <i class="toast-icon fas"></i>
+        <i class="toast-icon fas fa-check-circle"></i>
         <span class="toast-message"></span>
     </div>
 
+    <!-- Score Modal -->
     <div class="modal" id="scoreModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -240,7 +286,8 @@
                 </button>
             </div>
             <div class="modal-body" id="scoreContent">
-                </div>
+                <!-- Score content will be inserted here -->
+            </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="reviewAnswers">Review Answers</button>
                 <button class="btn btn-primary" id="tryAgain">Try Another Quiz</button>
@@ -248,6 +295,7 @@
         </div>
     </div>
 
+    <!-- Video Recommendations Modal -->
     <div class="video-modal" id="videoModal">
         <div class="video-modal-content">
             <div class="video-modal-header">
@@ -260,7 +308,8 @@
                 </button>
             </div>
             <div class="video-modal-body" id="videoContent">
-                </div>
+                <!-- Video recommendations will be inserted here -->
+            </div>
             <div class="video-modal-footer">
                 <button class="btn btn-secondary" id="closeVideoModalBtn">Close</button>
             </div>
@@ -268,5 +317,6 @@
     </div>
 
     <script src="static/script.js"></script>
+    <script src="static/chat-script.js"></script>
 </body>
 </html>
