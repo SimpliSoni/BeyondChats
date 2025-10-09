@@ -392,7 +392,9 @@ async function handleQuizSubmit(event) {
         displayScore(result);
         displayFeedback(result.questionFeedback);
         
+        console.log('Refreshing progress data...');
         await loadProgress();
+        console.log('Progress data refreshed');
         
     } catch (error) {
         showToast(`Error: ${error.message}`, 'error');
