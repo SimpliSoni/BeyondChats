@@ -68,7 +68,7 @@ A fully functional, responsive web application designed to help school students 
 - Visual cards with icons for better UX
 - Real-time updates after each quiz submission
 
-### B. Nice-to-Have Features (100% Complete)
+### B. Nice-to-Have Features (80% Complete)
 
 #### 1. ✅ Chat UI (ChatGPT-Inspired)
 - **Full ChatGPT-style interface** with:
@@ -87,7 +87,7 @@ A fully functional, responsive web application designed to help school students 
   - Typing indicators
   - Message timestamps
 
-#### 2. ✅ RAG Answers with Citations
+#### 2. ❌ RAG Answers with Citations
 - **Document-aware AI responses**
 - AI teacher answers questions **based solely on uploaded PDF content**
 - Responses include:
