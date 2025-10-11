@@ -430,8 +430,8 @@ body {
 .quiz-container {
     flex: 1;
     background: var(--bg-card);
-    min-height: calc(100vh - 145px);
-    max-height: calc(100vh - 145px);
+    min-height: 400px; /* Changed from calc(100vh - 145px) */
+    max-height: none; /* Changed from calc(100vh - 145px) */
     overflow: hidden;
     display: flex;
     flex-direction: column;

@@ -176,10 +176,10 @@ async function handleFileUpload(event) {
         
         // Update state
         window.currentPdfId = data.pdf_id;
-        const chatPdfContext = document.getElementById('chatPdfContext');
-        if (chatPdfContext) {
-            chatPdfContext.textContent = `Discussing: ${file.name}`;
-        }
+        
+        // FIXED: Update chat context properly
+        updateChatContext(file.name);
+        
         generateQuizBtn.disabled = false;
         
         // FIXED: Enable video recommendations button
@@ -192,29 +192,24 @@ async function handleFileUpload(event) {
     }
 }
 
+// FIXED: Complete rewrite of handlePdfSelect
 async function handlePdfSelect() {
     const selectedOption = pdfSelect.options[pdfSelect.selectedIndex];
     window.currentPdfId = selectedOption.value;
 
     if (window.currentPdfId) {
-        // Update chat context indicator
-        const chatPdfContext = document.getElementById('chatPdfContext');
-        if (chatPdfContext) {
-            chatPdfContext.textContent = `Discussing: ${selectedOption.textContent}`;
-        }
+        // FIXED: Update chat context properly
+        updateChatContext(selectedOption.textContent);
         
-        // Check if we have the file in memory
-        if (currentPdfFile && pdfSelect.options[pdfSelect.selectedIndex].textContent === currentPdfFile.name) {
-            renderPdf(currentPdfFile);
-        } else {
-            // Can't re-render PDFs in serverless environment
-            currentPdfFile = null;
-            pdfCanvas.style.display = 'none';
-            const placeholder = pdfViewer.querySelector('.pdf-placeholder');
-            placeholder.style.display = 'flex';
-            placeholder.querySelector('h3').textContent = "PDF Preview Not Available";
-            placeholder.querySelector('p').textContent = "The PDF was processed successfully, but preview is only available for newly uploaded files in this deployment.";
-        }
+        // FIXED: Always show placeholder for selected PDFs (serverless limitation)
+        currentPdfFile = null;
+        pdfCanvas.style.display = 'none';
+        const placeholder = pdfViewer.querySelector('.pdf-placeholder');
+        placeholder.style.display = 'flex';
+        
+        // Update placeholder text based on selection
+        placeholder.querySelector('h3').textContent = selectedOption.textContent;
+        placeholder.querySelector('p').textContent = "PDF processed successfully. Preview available for newly uploaded files only.";
         
         generateQuizBtn.disabled = false;
         getVideoRecsBtn.disabled = false;
@@ -230,9 +225,20 @@ async function handlePdfSelect() {
         getVideoRecsBtn.disabled = true;
         
         // Clear chat context
-        const chatPdfContext = document.getElementById('chatPdfContext');
-        if (chatPdfContext) {
+        updateChatContext(null);
+    }
+}
+
+// FIXED: New helper function to update chat context
+function updateChatContext(pdfName) {
+    const chatPdfContext = document.getElementById('chatPdfContext');
+    if (chatPdfContext) {
+        if (pdfName) {
+            chatPdfContext.textContent = `Discussing: ${pdfName}`;
+            chatPdfContext.style.display = 'inline-block';
+        } else {
             chatPdfContext.textContent = "No PDF Selected";
+            chatPdfContext.style.display = 'inline-block';
         }
     }
 }
@@ -277,6 +283,14 @@ async function generateQuiz() {
         showToast('Please select a PDF first.', 'warning');
         return;
     }
+    
+    // FIXED: Show proper button states during generation
+    const isNewQuiz = newQuizBtn.style.display !== 'none';
+    if (isNewQuiz) {
+        newQuizBtn.style.display = 'none';
+    }
+    generateQuizBtn.style.display = 'none';
+    
     showLoading('Crafting your custom quiz...');
     try {
         const response = await fetch('/api/generate-quiz', {
@@ -294,12 +308,41 @@ async function generateQuiz() {
         newQuizBtn.style.display = 'flex';
     } catch (error) {
         showToast(error.message, 'error');
+        // FIXED: Restore button state on error
+        if (isNewQuiz) {
+            newQuizBtn.style.display = 'flex';
+        } else {
+            generateQuizBtn.style.display = 'flex';
+        }
     } finally {
         hideLoading();
     }
 }
 
+// FIXED: Complete rewrite with validation
 function renderQuiz(quizData) {
+    // FIXED: Validate quiz has questions
+    const totalQuestions = (quizData.mcqs?.length || 0) + 
+                          (quizData.saqs?.length || 0) + 
+                          (quizData.laqs?.length || 0);
+    
+    if (totalQuestions === 0) {
+        quizContainer.innerHTML = `
+            <div class="quiz-placeholder">
+                <i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i>
+                <h3>Unable to Generate Quiz</h3>
+                <p>Could not create questions from this PDF. Please try uploading a different document with more text content.</p>
+                <div class="feature-list" style="margin-top: 1.5rem;">
+                    <div class="feature-item"><i class="fas fa-lightbulb"></i>Try a textbook or study material</div>
+                    <div class="feature-item"><i class="fas fa-lightbulb"></i>Ensure PDF has readable text</div>
+                    <div class="feature-item"><i class="fas fa-lightbulb"></i>Upload a different chapter</div>
+                </div>
+            </div>`;
+        generateQuizBtn.style.display = 'flex';
+        newQuizBtn.style.display = 'none';
+        return;
+    }
+    
     let questionCounter = 0;
     const renderQuestion = (type, question, options = []) => {
         questionCounter++;
@@ -338,10 +381,17 @@ function renderQuiz(quizData) {
                 </div>
             ` : '').join('')}
             <div class="quiz-actions">
-                <button type="submit" class="btn btn-primary submit-quiz-btn">Submit Answers</button>
+                <button type="submit" class="btn btn-primary submit-quiz-btn">
+                    <i class="fas fa-paper-plane"></i> Submit Answers
+                </button>
             </div>
         </form>`;
     document.getElementById('quizForm').addEventListener('submit', handleQuizSubmit);
+    
+    // FIXED: Scroll to quiz on mobile after generation
+    setTimeout(() => {
+        quizContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
 }
 
 async function handleQuizSubmit(event) {
@@ -356,9 +406,9 @@ async function handleQuizSubmit(event) {
     });
 
     // FIXED: Validate all questions are answered
-    const totalQuestions = Object.keys(currentQuiz.mcqs || []).length + 
-                          Object.keys(currentQuiz.saqs || []).length + 
-                          Object.keys(currentQuiz.laqs || []).length;
+    const totalQuestions = (currentQuiz.mcqs?.length || 0) + 
+                          (currentQuiz.saqs?.length || 0) + 
+                          (currentQuiz.laqs?.length || 0);
     
     if (Object.keys(userAnswers).length < totalQuestions) {
         showToast('Please answer all questions before submitting.', 'warning');
@@ -385,6 +435,11 @@ async function handleQuizSubmit(event) {
         
         // FIXED: Update stats after quiz submission
         updateQuickStats();
+        
+        // FIXED: Scroll to top to show feedback on mobile
+        setTimeout(() => {
+            quizContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 500);
     } catch (error) {
         showToast(`Error: ${error.message}`, 'error');
         submitButton.disabled = false;
@@ -444,6 +499,11 @@ async function getYouTubeRecommendations() {
         return;
     }
 
+    // FIXED: Better loading state for button
+    const originalHTML = getVideoRecsBtn.innerHTML;
+    getVideoRecsBtn.disabled = true;
+    getVideoRecsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading Videos...';
+
     showLoading('Finding relevant video recommendations...');
     try {
         const response = await fetch('/api/recommend-videos', {
@@ -462,6 +522,9 @@ async function getYouTubeRecommendations() {
         showToast(error.message, 'error');
     } finally {
         hideLoading();
+        // FIXED: Restore button state
+        getVideoRecsBtn.disabled = false;
+        getVideoRecsBtn.innerHTML = originalHTML;
     }
 }
 
@@ -537,18 +600,26 @@ async function loadProgress() {
     }
 }
 
+// FIXED: Better empty state with CTA
 function displayProgressData(attempts) {
     if (!attempts || attempts.length === 0) {
         attemptsList.innerHTML = `
             <div class="empty-state">
-                <i class="fas fa-clipboard-list"></i>
-                <h3>No Quiz Attempts Yet</h3>
-                <p>Complete a quiz to see your progress here!</p>
+                <i class="fas fa-chart-line"></i>
+                <h3>Start Your Learning Journey</h3>
+                <p>Complete your first quiz to track your progress and see detailed analytics!</p>
+                <button class="btn btn-primary" onclick="document.querySelector('[data-view=quiz]').click()" style="margin-top: 1.5rem;">
+                    <i class="fas fa-play-circle"></i> Take Your First Quiz
+                </button>
             </div>`;
         
         progressAttempts.textContent = '0';
         progressAverage.textContent = '0%';
-        document.getElementById('progressTrend').textContent = '+0%';
+        const trendElement = document.getElementById('progressTrend');
+        if (trendElement) {
+            trendElement.textContent = '+0%';
+            trendElement.style.color = 'var(--text-tertiary)';
+        }
         return;
     }
 
@@ -569,8 +640,10 @@ function displayProgressData(attempts) {
     progressAttempts.textContent = totalAttempts;
     progressAverage.textContent = `${avgScore}%`;
     const trendElement = document.getElementById('progressTrend');
-    trendElement.textContent = `${trend >= 0 ? '+' : ''}${trend}%`;
-    trendElement.style.color = trend >= 0 ? 'var(--success-color)' : 'var(--error-color)';
+    if (trendElement) {
+        trendElement.textContent = `${trend >= 0 ? '+' : ''}${trend}%`;
+        trendElement.style.color = trend >= 0 ? 'var(--success-color)' : 'var(--error-color)';
+    }
 
     // Display attempts list
     attemptsList.innerHTML = attempts.map((attempt, index) => {
@@ -615,7 +688,15 @@ async function updateQuickStats() {
             const scores = data.attempts.map(a => parseFloat(a.score) || 0);
             const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(0) : 0;
             
-            document.getElementById('avgScore').textContent = `${avgScore}%`;
+            const avgScoreEl = document.getElementById('avgScore');
+            if (avgScoreEl) {
+                avgScoreEl.textContent = `${avgScore}%`;
+                // FIXED: Add subtle animation
+                avgScoreEl.parentElement.style.animation = 'none';
+                setTimeout(() => {
+                    avgScoreEl.parentElement.style.animation = 'fadeIn 0.5s ease';
+                }, 10);
+            }
         }
     } catch (error) {
         console.error('Error updating quick stats:', error);
